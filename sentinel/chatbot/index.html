@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SentinelAI - CyberSec Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .chat-container { height: calc(100vh - 160px); }
+        .message-agent { background-color: #1e293b; border-left: 4px solid #3b82f6; }
+        .message-user { background-color: #334155; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans">
+
+    <div class="max-w-4xl mx-auto h-screen flex flex-col p-4">
+        <header class="flex items-center justify-between py-4 border-b border-slate-700">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 p-2 rounded-lg">
+                    <i class="fas fa-shield-halved text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Sentinel<span class="text-blue-500">AI</span></h1>
+                    <p class="text-xs text-slate-400">Agente de Ciberseguridad Activo</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <select id="model-select" class="bg-slate-800 text-xs border border-slate-700 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500">
+                    <option value="balanceado" selected>⚖️ Balanceado</option>
+                    <option value="defensivo">🛡️ Defensivo (SOC)</option>
+                    <option value="ofensivo">💀 Ofensivo (Red)</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="relative flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </span>
+                <span class="text-xs font-mono text-slate-400">SOC_NODE_01</span>
+            </div>
+        </header>
+
+        <div id="chat-box" class="chat-container overflow-y-auto my-4 space-y-4 p-2">
+            <div class="message-agent p-4 rounded-r-lg rounded-tl-lg max-w-[85%]">
+                <p class="text-sm">Sistemas listos. Soy **SentinelAI**. Puedo consultar alertas de **Wazuh**, buscar en la **web** o analizar **logs**. ¿En qué puedo ayudarte hoy?</p>
+            </div>
+        </div>
+
+        <div id="loading" class="hidden flex items-center gap-2 mb-4 text-blue-400 text-sm animate-pulse">
+            <i class="fas fa-circle-notch animate-spin"></i>
+            <span>Consultando herramientas de seguridad...</span>
+        </div>
+
+        <div class="relative mt-auto">
+            <input 
+                id="input" 
+                type="text" 
+                placeholder="Escribe tu consulta (ej: 'Analiza las últimas alertas de Wazuh')..." 
+                class="w-full bg-slate-800 border border-slate-700 rounded-xl py-4 pl-6 pr-16 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-2xl"
+                onkeypress="if(event.key === 'Enter') send()"
+            />
+            <button 
+                onclick="send()" 
+                class="absolute right-3 top-2.5 bg-blue-600 hover:bg-blue-500 text-white p-2.5 rounded-lg transition-colors"
+            >
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById("chat-box");
+        const loading = document.getElementById("loading");
+
+        // Detectar cambio en el desplegable
+        document.getElementById("model-select").addEventListener("change", async (e) => {
+            const selectedMode = e.target.value;
+            
+            // Opcional: Mostrar un mensaje visual de que el modelo está cambiando
+            console.log("Cambiando a modo:", selectedMode);
+
+            try {
+                await fetch("/config-model", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ mode: selectedMode })
+                });
+            } catch (error) {
+                console.error("Error al cambiar el modelo:", error);
+            }
+        });
+
+        function appendMessage(role, text) {
+            const msgDiv = document.createElement("div");
+            msgDiv.className = role === 'user' 
+                ? "message-user p-4 rounded-l-lg rounded-tr-lg max-w-[85%] ml-auto text-right" 
+                : "message-agent p-4 rounded-r-lg rounded-tl-lg max-w-[85%]";
+            
+            // Convertimos saltos de línea y formateo básico de markdown
+            const formattedText = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            msgDiv.innerHTML = `<p class="text-sm">${formattedText}</p>`;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        async function send() {
+            const inputField = document.getElementById("input");
+            const question = inputField.value.trim();
+            if (!question) return;
+
+            // Mostrar mensaje del usuario
+            appendMessage('user', question);
+            inputField.value = "";
+            
+            // Mostrar loading
+            loading.classList.remove("hidden");
+
+            try {
+                const res = await fetch("/chat", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        question: question,
+                    })
+                });
+
+                const data = await res.json();
+                
+                // Ocultar loading y mostrar respuesta
+                loading.classList.add("hidden");
+                appendMessage('agent', data.response);
+
+            } catch (error) {
+                loading.classList.add("hidden");
+                appendMessage('agent', "❌ **Error de conexión:** No se pudo contactar con el servidor SOC. Verifica que el backend esté corriendo.");
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>
