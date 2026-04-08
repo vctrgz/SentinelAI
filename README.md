@@ -1,6 +1,6 @@
 # SentinelAI
 AI Agents Workflow for Cybersecurity purposes
-# 🛡️ SentinelAI - Guía de Instalación Universal
+# 🛡️ SentinelAI - Guía de Instalación 
 
 Este documento detalla los pasos necesarios para configurar el entorno de SentinelAI en los principales sistemas operativos.
 
@@ -175,3 +175,38 @@ python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ---
+## 🚀 Uso y Verificación
+
+Una vez que el servidor esté corriendo, puedes interactuar con SentinelAI de la siguiente manera:
+
+---
+
+### 🔹 Documentación Interactiva (Swagger)
+
+Accede desde tu navegador:
+
+```id="x2h9kp"
+http://localhost:8000/docs
+```
+
+Permite probar los endpoints directamente.
+
+---
+
+### 🔹 Estado de Ollama
+
+Verifica que Ollama está funcionando:
+
+```id="m7q4zs"
+http://localhost:11434
+```
+
+---
+
+### 🔹 Cierre del servidor
+
+Para detener el proceso, usa en la terminal:
+
+```id="p9t1an"
+Ctrl + C
+```
