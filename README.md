@@ -8,20 +8,25 @@ Este documento detalla los pasos necesarios para configurar el entorno de Sentin
 
 ## 🪟 Instalación en WINDOWS
 
-### 1. Instalación de Python 3.14
+### 1. Instalación de Python 3.12
 
 Elige el método que prefieras:
 
 **🔹 Vía Terminal (PowerShell como Administrador):**
 
 ```powershell
-winget install -e --id Python.Python.3.14
+winget install -e --id Python.Python.3.12
 ```
 
 **🔹 Vía Instalador Web:**
 
 1. Descarga el instalador desde: https://www.python.org/
 2. ⚠️ **IMPORTANTE:** Marca la casilla **"Add Python to PATH"** antes de instalar.
+
+**🔹 Vía Microsoft Store:**
+
+1. Abre microsoft store y busca la aplicación pyhton 3.12.
+2. Instala la aplicación.
 
 ---
 
@@ -47,7 +52,7 @@ ollama pull foundation-sec
 ### 3. Instalación de Librerías
 
 ```powershell
-pip install fastapi "uvicorn[standard]" langchain langchain-ollama langchain-community pydantic httpx watchfiles
+python -m pip install fastapi==0.135.3 uvicorn==0.44.0 pydantic==2.12.5 langchain==0.1.20 langchain-community==0.0.38 langchainhub==0.1.21 python-dotenv==1.2.2
 ```
 
 ---
@@ -163,7 +168,7 @@ ollama pull foundation-sec
 ### 3. Instalación de Librerías
 
 ```bash
-pip3 install fastapi "uvicorn[standard]" langchain langchain-ollama langchain-community pydantic httpx watchfiles
+pip3 install fastapi==0.135.3 uvicorn==0.44.0 pydantic==2.12.5 langchain==0.1.20 langchain-community==0.0.38 langchainhub==0.1.21 python-dotenv==1.2.2
 ```
 
 ---
