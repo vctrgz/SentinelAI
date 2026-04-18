@@ -1,50 +1,38 @@
-import os
-import sys
+import json
+from core.orchestrator import Orchestrator
+from utils.logger import setup_logger
 
-# 1. PRIMERO configuramos el path
-# Esto le dice a Python que mire en la carpeta raíz 'sentinel'
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+logger = setup_logger()
 
-# 2. DESPUÉS importamos tus módulos
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from app.agent.agent import get_llm, run_agent
 
-app = FastAPI()
+def run():
+    print("🧠 SentinelAI iniciado. Escribe 'exit' para salir.\n")
 
-# 1. Configurar CORS (Vital para que el HTML pueda llamar a la API)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # Permite peticiones desde cualquier origen
-    allow_credentials=True,
-    allow_methods=["*"], # Permite todos los métodos (POST, GET, etc.)
-    allow_headers=["*"], # Permite todas las cabeceras
-)
+    orchestrator = Orchestrator()
 
-# Modelo para el chat
-class ChatQuery(BaseModel):
-    question: str
+    while True:
+        try:
+            user_input = input(">> ")
 
-# Modelo para la configuración del modelo
-class ConfigQuery(BaseModel):
-    mode: str
+            if user_input.lower() in ["exit", "quit"]:
+                print("👋 Cerrando SentinelAI...")
+                break
 
-# 2. Servir el archivo index.html en la raíz
-@app.get("/")
-def read_index():
-    # Buscamos el archivo index.html que está en la carpeta /chatbot
-    path = os.path.join(os.getcwd(), "chatbot", "index.html")
-    return FileResponse(path)
+            # Procesar input
+            result = orchestrator.handle_user_input(user_input)
 
-@app.post("/chat")
-def chat(query: ChatQuery):
-    response = run_agent(query.question)
-    return {"response": response}
+            print("\n📤 Resultado:\n")
+            print(result)
+            print("\n" + "=" * 50 + "\n")
 
-@app.post("/config-model")
-def config_model(config: ConfigQuery):
-    # Llamamos a la función que reconstruye el agente
-    get_llm(config.mode)
-    return {"status": "success", "model_active": config.mode}
+        except KeyboardInterrupt:
+            print("\n👋 Interrumpido por el usuario.")
+            break
+
+        except Exception as e:
+            logger.error(f"Error en main loop: {str(e)}")
+            print("❌ Ha ocurrido un error inesperado.")
+
+
+if __name__ == "__main__":
+    run()
