@@ -1,145 +1,252 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SentinelAI - CyberSec Agent</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        .chat-container { height: calc(100vh - 160px); }
-        .message-agent { background-color: #1e293b; border-left: 4px solid #3b82f6; }
-        .message-user { background-color: #334155; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SentinelAI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --cyan:#00e5ff;--purple:#a855f7;--teal:#14b8a6;
+  --bg:#03040f;--glass:rgba(255,255,255,0.035);--border:rgba(255,255,255,0.08);
+  --text:#e2e8f0;--muted:#64748b;
+  --font:'Syne',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.6;overflow:hidden;}
+
+/* Orbs */
+.bg-scene{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;}
+.orb{position:absolute;border-radius:50%;filter:blur(120px);animation:orbFloat linear infinite;}
+.orb-1{width:600px;height:600px;background:radial-gradient(circle,rgba(0,229,255,.16) 0%,transparent 70%);top:-200px;left:-150px;animation-duration:20s;}
+.orb-2{width:500px;height:500px;background:radial-gradient(circle,rgba(168,85,247,.18) 0%,transparent 70%);bottom:-100px;right:-100px;animation-duration:25s;animation-delay:-9s;}
+.orb-3{width:380px;height:380px;background:radial-gradient(circle,rgba(59,130,246,.13) 0%,transparent 70%);top:38%;left:42%;animation-duration:32s;animation-delay:-16s;}
+@keyframes orbFloat{0%{opacity:0;transform:translate(0,0) scale(1)}10%{opacity:1}50%{transform:translate(35px,-28px) scale(1.07)}90%{opacity:1}100%{opacity:0;transform:translate(0,0) scale(1)}}
+
+/* Grid */
+.bg-grid{position:fixed;inset:0;z-index:1;pointer-events:none;
+  background-image:linear-gradient(rgba(0,229,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.025) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 80% 80% at 50% 50%,black 30%,transparent 100%);}
+
+/* Layout */
+.app{position:relative;z-index:2;height:100vh;display:flex;flex-direction:column;max-width:860px;margin:0 auto;padding:0 16px;}
+
+/* Header */
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;margin:12px 0 8px;border-radius:16px;
+  background:rgba(255,255,255,0.03);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
+  border:1px solid var(--border);box-shadow:0 0 0 1px rgba(0,229,255,.04),inset 0 1px 0 rgba(255,255,255,.05);}
+
+.logo{display:flex;align-items:center;gap:12px;}
+.logo-icon{width:36px;height:36px;border-radius:10px;
+  background:linear-gradient(135deg,rgba(0,229,255,.18),rgba(168,85,247,.18));
+  border:1px solid rgba(0,229,255,.3);display:flex;align-items:center;justify-content:center;
+  font-size:15px;color:var(--cyan);box-shadow:0 0 16px rgba(0,229,255,.2),inset 0 1px 0 rgba(255,255,255,.1);}
+.logo-text{line-height:1.2;}
+.logo-name{display:block;font-size:17px;font-weight:700;letter-spacing:-.3px;
+  background:linear-gradient(90deg,#fff 40%,var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.logo-sub{display:block;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-family:var(--mono);}
+
+.header-controls{display:flex;align-items:center;gap:10px;}
+
+.model-select{appearance:none;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--text);
+  font-family:var(--font);font-size:12px;font-weight:500;padding:7px 28px 7px 12px;border-radius:10px;cursor:pointer;outline:none;
+  transition:border-color .2s,box-shadow .2s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;}
+.model-select:hover,.model-select:focus{border-color:rgba(0,229,255,.3);box-shadow:0 0 12px rgba(0,229,255,.1);}
+.model-select option{background:#0d0d1a;}
+
+.status-pill{display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:20px;
+  background:rgba(255,255,255,.04);border:1px solid var(--border);
+  font-size:11px;font-weight:500;font-family:var(--mono);color:var(--muted);transition:all .3s;}
+.status-pill.online{border-color:rgba(20,184,166,.4);color:var(--teal);box-shadow:0 0 10px rgba(20,184,166,.1);}
+.status-pill.offline{border-color:rgba(239,68,68,.4);color:#ef4444;}
+.status-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+.status-pill.online .status-dot{box-shadow:0 0 6px currentColor;animation:dotPulse 2s ease-in-out infinite;}
+@keyframes dotPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+
+/* Chat */
+.chat-wrap{flex:1;overflow-y:auto;padding:8px 4px 16px;display:flex;flex-direction:column;gap:14px;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.08) transparent;}
+.chat-wrap::-webkit-scrollbar{width:4px;}
+.chat-wrap::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:4px;}
+
+/* Messages */
+.msg{max-width:78%;padding:14px 18px;border-radius:16px;font-size:14px;line-height:1.7;
+  animation:msgIn .25s ease forwards;position:relative;
+  backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);}
+@keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+.msg-agent{align-self:flex-start;
+  background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.12);border-left:2px solid rgba(0,229,255,.5);
+  box-shadow:0 0 0 1px rgba(0,229,255,.04),0 4px 24px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.05);}
+.msg-agent::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,rgba(0,229,255,.4),transparent);border-radius:16px 16px 0 0;}
+
+.msg-user{align-self:flex-end;text-align:right;
+  background:rgba(168,85,247,.07);border:1px solid rgba(168,85,247,.15);border-right:2px solid rgba(168,85,247,.5);
+  box-shadow:0 0 0 1px rgba(168,85,247,.04),0 4px 24px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.05);}
+.msg-user::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(168,85,247,.4));border-radius:16px 16px 0 0;}
+
+.msg-label{font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-family:var(--mono);
+  color:var(--cyan);opacity:.7;margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.msg-label i{font-size:9px;}
+
+.msg strong{color:var(--cyan);font-weight:600;}
+.msg code{font-family:var(--mono);font-size:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
+  padding:1px 6px;border-radius:5px;color:#a5f3fc;}
+
+/* Typing */
+.typing{display:none;align-self:flex-start;padding:14px 18px;border-radius:16px;
+  background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.12);border-left:2px solid rgba(0,229,255,.5);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);}
+.typing.on{display:flex;align-items:center;gap:5px;}
+.tdot{width:6px;height:6px;border-radius:50%;background:var(--cyan);opacity:.4;animation:td 1.2s ease-in-out infinite;}
+.tdot:nth-child(2){animation-delay:.2s}
+.tdot:nth-child(3){animation-delay:.4s}
+@keyframes td{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-6px);opacity:1}}
+
+/* Input */
+.input-area{margin-bottom:16px;border-radius:16px;
+  background:rgba(255,255,255,.03);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
+  border:1px solid var(--border);box-shadow:0 0 0 1px rgba(0,229,255,.04),inset 0 1px 0 rgba(255,255,255,.05);
+  transition:border-color .2s,box-shadow .2s;position:relative;overflow:hidden;}
+.input-area::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent 10%,rgba(0,229,255,.2) 50%,transparent 90%);opacity:0;transition:opacity .3s;}
+.input-area:focus-within{border-color:rgba(0,229,255,.25);box-shadow:0 0 0 1px rgba(0,229,255,.08),0 0 30px rgba(0,229,255,.07),inset 0 1px 0 rgba(255,255,255,.05);}
+.input-area:focus-within::before{opacity:1;}
+
+.input-row{display:flex;align-items:center;gap:12px;padding:12px 14px;}
+.chat-input{flex:1;background:none;border:none;outline:none;color:var(--text);font-family:var(--font);font-size:14px;padding:4px 0;caret-color:var(--cyan);}
+.chat-input::placeholder{color:var(--muted);}
+
+.send-btn{width:38px;height:38px;border-radius:11px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:14px;background:linear-gradient(135deg,rgba(0,229,255,.15),rgba(168,85,247,.15));
+  border:1px solid rgba(0,229,255,.25);color:var(--cyan);transition:all .2s;flex-shrink:0;
+  box-shadow:0 0 14px rgba(0,229,255,.1);}
+.send-btn:hover{background:linear-gradient(135deg,rgba(0,229,255,.25),rgba(168,85,247,.25));box-shadow:0 0 20px rgba(0,229,255,.2);transform:scale(1.05);}
+.send-btn:active{transform:scale(.96);}
+.send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.input-hint{padding:0 14px 10px;font-size:11px;font-family:var(--mono);color:var(--muted);}
+.hint-key{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:10px;}
+</style>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans">
+<body>
 
-    <div class="max-w-4xl mx-auto h-screen flex flex-col p-4">
-        <header class="flex items-center justify-between py-4 border-b border-slate-700">
-            <div class="flex items-center gap-3">
-                <div class="bg-blue-600 p-2 rounded-lg">
-                    <i class="fas fa-shield-halved text-xl"></i>
-                </div>
-                <div>
-                    <h1 class="text-xl font-bold tracking-tight">Sentinel<span class="text-blue-500">AI</span></h1>
-                    <p class="text-xs text-slate-400">Agente de Ciberseguridad Activo</p>
-                </div>
-            </div>
-            <div class="flex items-center gap-4">
-                <select id="model-select" class="bg-slate-800 text-xs border border-slate-700 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500">
-                    <option value="balanceado" selected>⚖️ Balanceado</option>
-                    <option value="defensivo">🛡️ Defensivo (SOC)</option>
-                    <option value="ofensivo">💀 Ofensivo (Red)</option>
-                </select>
-            </div>
-            <div class="flex items-center gap-2">
-                <span class="relative flex h-3 w-3">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                </span>
-                <span class="text-xs font-mono text-slate-400">SOC_NODE_01</span>
-            </div>
-        </header>
+<div class="bg-scene">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+<div class="bg-grid"></div>
 
-        <div id="chat-box" class="chat-container overflow-y-auto my-4 space-y-4 p-2">
-            <div class="message-agent p-4 rounded-r-lg rounded-tl-lg max-w-[85%]">
-                <p class="text-sm">Sistemas listos. Soy **SentinelAI**. Puedo consultar alertas de **Wazuh**, buscar en la **web** o analizar **logs**. ¿En qué puedo ayudarte hoy?</p>
-            </div>
-        </div>
+<div class="app">
 
-        <div id="loading" class="hidden flex items-center gap-2 mb-4 text-blue-400 text-sm animate-pulse">
-            <i class="fas fa-circle-notch animate-spin"></i>
-            <span>Consultando herramientas de seguridad...</span>
-        </div>
-
-        <div class="relative mt-auto">
-            <input 
-                id="input" 
-                type="text" 
-                placeholder="Escribe tu consulta (ej: 'Analiza las últimas alertas de Wazuh')..." 
-                class="w-full bg-slate-800 border border-slate-700 rounded-xl py-4 pl-6 pr-16 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-2xl"
-                onkeypress="if(event.key === 'Enter') send()"
-            />
-            <button 
-                onclick="send()" 
-                class="absolute right-3 top-2.5 bg-blue-600 hover:bg-blue-500 text-white p-2.5 rounded-lg transition-colors"
-            >
-                <i class="fas fa-paper-plane"></i>
-            </button>
-        </div>
+  <header>
+    <div class="logo">
+      <div class="logo-icon"><i class="fas fa-shield-halved"></i></div>
+      <div class="logo-text">
+        <span class="logo-name">SentinelAI</span>
+        <span class="logo-sub">Cybersec Agent</span>
+      </div>
     </div>
+    <div class="header-controls">
+      <select id="modelSelect" class="model-select">
+        <option value="balanceado">⚖ Balanceado</option>
+        <option value="defensivo">🛡 Defensivo</option>
+        <option value="ofensivo">⚔ Ofensivo</option>
+      </select>
+      <div class="status-pill" id="statusPill">
+        <div class="status-dot"></div>
+        <span id="statusText">Conectando</span>
+      </div>
+    </div>
+  </header>
 
-    <script>
-        const chatBox = document.getElementById("chat-box");
-        const loading = document.getElementById("loading");
+  <div class="chat-wrap" id="chatWrap">
+    <div class="typing" id="typing">
+      <div class="tdot"></div><div class="tdot"></div><div class="tdot"></div>
+    </div>
+  </div>
 
-        // Detectar cambio en el desplegable
-        document.getElementById("model-select").addEventListener("change", async (e) => {
-            const selectedMode = e.target.value;
-            
-            // Opcional: Mostrar un mensaje visual de que el modelo está cambiando
-            console.log("Cambiando a modo:", selectedMode);
+  <div class="input-area">
+    <div class="input-row">
+      <input id="chatInput" class="chat-input" type="text"
+        placeholder="Escribe tu consulta de seguridad..." autocomplete="off" spellcheck="false"/>
+      <button class="send-btn" id="sendBtn"><i class="fas fa-arrow-up"></i></button>
+    </div>
+    <div class="input-hint">
+      <span class="hint-key">Enter</span> para enviar
+    </div>
+  </div>
 
-            try {
-                await fetch("/config-model", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({ mode: selectedMode })
-                });
-            } catch (error) {
-                console.error("Error al cambiar el modelo:", error);
-            }
-        });
+</div>
 
-        function appendMessage(role, text) {
-            const msgDiv = document.createElement("div");
-            msgDiv.className = role === 'user' 
-                ? "message-user p-4 rounded-l-lg rounded-tr-lg max-w-[85%] ml-auto text-right" 
-                : "message-agent p-4 rounded-r-lg rounded-tl-lg max-w-[85%]";
-            
-            // Convertimos saltos de línea y formateo básico de markdown
-            const formattedText = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            
-            msgDiv.innerHTML = `<p class="text-sm">${formattedText}</p>`;
-            chatBox.appendChild(msgDiv);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
+<script>
+const chatWrap=document.getElementById('chatWrap'),input=document.getElementById('chatInput'),
+      sendBtn=document.getElementById('sendBtn'),typing=document.getElementById('typing'),
+      statusPill=document.getElementById('statusPill'),statusText=document.getElementById('statusText');
 
-        async function send() {
-            const inputField = document.getElementById("input");
-            const question = inputField.value.trim();
-            if (!question) return;
+function fmt(t){
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+          .replace(/`(.*?)`/g,'<code>$1</code>');
+}
 
-            // Mostrar mensaje del usuario
-            appendMessage('user', question);
-            inputField.value = "";
-            
-            // Mostrar loading
-            loading.classList.remove("hidden");
+function addMsg(role,html){
+  const d=document.createElement('div');
+  d.className=role==='user'?'msg msg-user':'msg msg-agent';
+  d.innerHTML=role==='agent'
+    ?`<div class="msg-label"><i class="fas fa-microchip"></i> SentinelAI</div><div>${html}</div>`
+    :html;
+  chatWrap.insertBefore(d,typing);
+  chatWrap.scrollTop=chatWrap.scrollHeight;
+}
 
-            try {
-                const res = await fetch("/chat", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({
-                        question: question,
-                    })
-                });
+function showTyping(){typing.classList.add('on');chatWrap.scrollTop=chatWrap.scrollHeight;}
+function hideTyping(){typing.classList.remove('on');}
 
-                const data = await res.json();
-                
-                // Ocultar loading y mostrar respuesta
-                loading.classList.add("hidden");
-                appendMessage('agent', data.response);
+function setStatus(s){
+  statusPill.className='status-pill '+s;
+  statusText.textContent={online:'Online',offline:'Sin LLM'}[s]||'Conectando';
+}
 
-            } catch (error) {
-                loading.classList.add("hidden");
-                appendMessage('agent', "❌ **Error de conexión:** No se pudo contactar con el servidor SOC. Verifica que el backend esté corriendo.");
-                console.error(error);
-            }
-        }
-    </script>
+async function checkHealth(){
+  try{
+    const d=await (await fetch('/health')).json();
+    if(d.status==='ok'){
+      setStatus('online');
+      const m=d.models?.slice(0,3).join(', ')||'ninguno';
+      addMsg('agent',`Sistema listo. Modelos disponibles: <code>${m}</code>.<br>¿En qué puedo ayudarte hoy?`);
+    } else {
+      setStatus('offline');
+      addMsg('agent',`⚠ Ollama no disponible en <code>${d.ollama_url}</code>.<br>Verifica que el servidor esté corriendo y configura <code>OLLAMA_HOST</code> en <code>.env</code>.`);
+    }
+  } catch{
+    setStatus('offline');
+    addMsg('agent','No se puede conectar con el servidor. ¿Está corriendo uvicorn?');
+  }
+}
+
+async function send(){
+  const q=input.value.trim();
+  if(!q||sendBtn.disabled) return;
+  addMsg('user',fmt(q));
+  input.value='';sendBtn.disabled=true;showTyping();
+  try{
+    const d=await(await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})})).json();
+    hideTyping();addMsg('agent',fmt(d.response||'(sin respuesta)'));
+  } catch(e){hideTyping();addMsg('agent',`Error: <code>${e}</code>`);}
+  finally{sendBtn.disabled=false;input.focus();}
+}
+
+input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
+sendBtn.addEventListener('click',send);
+checkHealth();input.focus();
+</script>
 </body>
 </html>

@@ -24,17 +24,18 @@ class Config:
     TIMEOUT = int(os.getenv("TIMEOUT", 30))
 
     # 🔹 Seguridad
-    REQUIRE_CONFIRMATION = True
-    ALLOW_DANGEROUS_COMMANDS = False
+    REQUIRE_CONFIRMATION    = os.getenv("REQUIRE_CONFIRMATION", "true").lower() == "true"
+    ALLOW_DANGEROUS_COMMANDS = os.getenv("ALLOW_DANGEROUS_COMMANDS", "false").lower() == "true"
 
     # 🔹 Paths
     BASE_DIR = os.path.dirname(os.path.dirname(__file__))
     LOG_DIR = os.path.join(BASE_DIR, "logs")
     MEMORY_DIR = os.path.join(BASE_DIR, "memory")
-
-    # 🔹 Sandbox
-    SANDBOX_MODE = True
     SANDBOX_PATH = os.path.join(BASE_DIR, "sandbox")
 
+    # 🔹 Sandbox
+    SSANDBOX_MODE   = os.getenv("SANDBOX_MODE", "true").lower() == "true"
+    DOCKER_IMAGE   = os.getenv("DOCKER_IMAGE", "python:3.11-slim")
+
     # 🔹 Debug
-    DEBUG = True
+    DEBUG = os.getenv("DEBUG", "false").lower() == "true"

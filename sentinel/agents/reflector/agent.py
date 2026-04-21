@@ -1,12 +1,14 @@
+from app.config import Config
 from utils.ollama_client import OllamaClient
 from utils.json_parser import safe_json_parse
-from sentinel.utils.prompt_loader import build_system_prompt
+from utils.prompt_loader import build_system_prompt
 
 
 class ReflectorAgent:
 
     def __init__(self):
-        self.llm = OllamaClient()
+        OLLAMA_MODEL = Config.MODELS.get(Config.DEFAULT_MODEL, 'balanceado')
+        self.llm = OllamaClient(OLLAMA_MODEL)
         self.system_prompt = build_system_prompt("agents/reflector")
 
     def run(self, execution_results: list, task: dict) -> dict:

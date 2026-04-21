@@ -1,3 +1,4 @@
+from app.config import Config
 from utils.ollama_client import OllamaClient
 from utils.json_parser import safe_json_parse
 from utils.prompt_loader import build_system_prompt
@@ -6,7 +7,8 @@ from utils.prompt_loader import build_system_prompt
 class SupervisorAgent:
 
     def __init__(self):
-        self.llm = OllamaClient()
+        OLLAMA_MODEL = Config.MODELS.get(Config.DEFAULT_MODEL, 'balanceado')
+        self.llm = OllamaClient(OLLAMA_MODEL)
 
     def run(self, commands: dict, objective: str = "") -> dict:
 

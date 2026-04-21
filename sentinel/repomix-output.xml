@@ -1,0 +1,3321 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+agents/executors/base_executor.py
+agents/executors/shell_executor.py
+agents/executors/tool_manager.py
+agents/orchestrator/agent.py
+agents/orchestrator/AGENTS.md
+agents/planner/agent.py
+agents/planner/AGENTS.md
+agents/reflector/agent.py
+agents/reflector/AGENTS.md
+agents/supervisor/agent.py
+agents/supervisor/AGENTS.md
+agents/task_router/agent.py
+agents/task_router/AGENTS.md
+agents/translator/agent.py
+agents/translator/AGENTS.md
+app/__init__.py
+app/config.py
+app/constants.py
+app/main.py
+chatbot/index.html
+core/orchestrator.py
+core/planner.py
+core/reflector.py
+core/supervisor.py
+core/task_router.py
+core/translator.py
+run.py
+skills/orchestrator/ambiguity_resolution/SKILL.md
+skills/orchestrator/confirmation_handling/SKILL.md
+skills/orchestrator/human_comunication/SKILL.md
+skills/orchestrator/intent_interpretation/SKILL.md
+skills/orchestrator/objective_structuring/SKILL.md
+skills/orchestrator/risk_explanation/SKILL.md
+skills/planner/dependency_analysis/SKILL.md
+skills/planner/parallelization_strategy/SKILL.md
+skills/planner/plan_structuring/SKILL.md
+skills/planner/task_decomposition/SKILL.md
+skills/reflector/context_feedback/SKILL.md
+skills/reflector/error_analysis/SKILL.md
+skills/reflector/executation_summarization/SKILL.md
+skills/reflector/failure_classification/SKILL.md
+skills/reflector/retry_strategy/SKILL.md
+skills/supervisor/command_sanitization/SKILL.md
+skills/supervisor/execution_preparation/SKILL.md
+skills/supervisor/permission_handling/SKILL.md
+skills/supervisor/policy_enforcement/SKILL.md
+skills/supervisor/risk_analysis/SKILL.md
+skills/task_router/batch_optimization/SKILL.md
+skills/task_router/command_clasification/SKILL.md
+skills/task_router/executor_selection/SKILL.md
+skills/translator/command_generation/SKILL.md
+skills/translator/enviroment_awareness/SKILL.md
+skills/translator/error_aware_translation/SKILL.md
+skills/translator/safe_command_generation/SKILL.md
+skills/translator/tool_detection/SKILL.md
+utils/agent_parser.py
+utils/command_validator.py
+utils/dag_executor.py
+utils/debug.py
+utils/json_parser.py
+utils/logger.py
+utils/ollama_client.py
+utils/parallel_executor.py
+utils/prompt_loader.py
+utils/skill_loader.py
+utils/tracer.py
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="agents/executors/base_executor.py">
+class BaseExecutor:
+
+    def execute(self, cmd: str) -> dict:
+        raise NotImplementedError
+</file>
+
+<file path="agents/executors/shell_executor.py">
+import subprocess
+from agents.executors.base_executor import BaseExecutor
+
+
+class ShellExecutor(BaseExecutor):
+
+    def execute(self, cmd: str) -> dict:
+        try:
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True
+            )
+
+            return {
+                "command": cmd,
+                "stdout": result.stdout.strip(),
+                "stderr": result.stderr.strip(),
+                "returncode": result.returncode
+            }
+
+        except Exception as e:
+            return {
+                "command": cmd,
+                "stdout": "",
+                "stderr": str(e),
+                "returncode": -1
+            }
+</file>
+
+<file path="agents/executors/tool_manager.py">
+import shutil
+import subprocess
+
+
+class ToolManager:
+
+    def install_tool(self, tool_name: str) -> dict:
+
+        try:
+            cmd = f"sudo apt install {tool_name} -y"
+
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True
+            )
+
+            return {
+                "tool": tool_name,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "installed": result.returncode == 0
+            }
+
+        except Exception as e:
+            return {
+                "tool": tool_name,
+                "error": str(e)
+            }
+        
+    def is_installed(self, tool: str) -> bool:
+        return shutil.which(tool) is not None
+
+    def ensure_tool(self, tool: str) -> dict:
+
+        if self.is_installed(tool):
+            return {"tool": tool, "status": "already_installed"}
+
+        return self.install_tool(tool)
+</file>
+
+<file path="agents/orchestrator/agent.py">
+from utils.ollama_client import OllamaClient
+from utils.json_parser import safe_json_parse
+from utils.prompt_loader import build_system_prompt
+import os
+from app.config import Config
+
+
+class OrchestratorAgent:
+
+    def __init__(self):
+        OLLAMA_MODEL = Config.MODELS.get(Config.DEFAULT_MODEL, 'balanceado')
+        self.llm = OllamaClient(OLLAMA_MODEL)
+        self.system_prompt = build_system_prompt("agents/orchestrator")
+
+    def interpret(self, user_input: str) -> dict:
+
+        user_prompt = f"""
+User input:
+{user_input}
+
+Return structured JSON.
+"""
+
+        response = self.llm.chat(self.system_prompt, user_prompt)
+
+        return safe_json_parse(response)
+
+    def format_confirmation(self, commands: list) -> str:
+
+        user_prompt = f"""
+Explain these commands to a human:
+
+{commands}
+"""
+
+        return self.llm.chat(self.system_prompt, user_prompt)
+</file>
+
+<file path="agents/orchestrator/AGENTS.md">
+# Orchestrator Agent
+
+## Purpose
+Act as the interface between the user and the system.
+
+You are responsible for interpreting user intent, managing confirmations, and returning results.
+
+---
+
+## Responsibilities
+- Convert user input into structured JSON tasks
+- Translate system actions into human-readable explanations
+- Handle Human-In-The-Loop (HITL) confirmations
+- Ensure user understands risks before execution
+
+---
+
+## How to Think
+- Always prioritize clarity over completeness
+- Interpret ambiguous input conservatively
+- Assume user does NOT understand technical risks
+- Never infer actions that were not explicitly requested
+
+---
+
+## Skills
+- intent_interpretation
+- human_communication
+- risk_explanation
+
+---
+
+## Skill Usage Rules
+
+### intent_interpretation
+Use when:
+- receiving raw user input
+- converting natural language into structured task JSON
+
+### human_communication
+Use when:
+- explaining execution plans or results
+- simplifying technical language
+
+### risk_explanation
+Use when:
+- commands are flagged as critical
+- user confirmation is required
+
+---
+
+## Output Rules
+
+### When interpreting input
+You MUST return JSON:
+
+{
+  "objective": "clear user goal",
+  "constraints": [],
+  "priority": "low|medium|high"
+}
+
+### When explaining actions
+- Use natural language
+- Be concise and clear
+- Do not include JSON
+
+---
+
+## Do
+- Ask for clarification if needed
+- Explain risks clearly
+- Keep outputs structured
+
+## Don't
+- Execute commands
+- Generate shell commands
+- Skip user confirmation for critical actions
+</file>
+
+<file path="agents/planner/agent.py">
+from utils.ollama_client import OllamaClient
+from utils.json_parser import safe_json_parse
+from utils.prompt_loader import build_system_prompt
+
+
+class PlannerAgent:
+
+    def __init__(self):
+        self.llm = OllamaClient()
+        self.system_prompt = build_system_prompt("agents/planner")
+
+    def run(self, task: dict) -> dict:
+
+        user_prompt = f"""
+Objective:
+{task['objective']}
+
+Context:
+{task['context']}
+"""
+
+        response = self.llm.chat(self.system_prompt, user_prompt)
+
+        return safe_json_parse(response)
+</file>
+
+<file path="agents/planner/AGENTS.md">
+# Planner Agent
+
+## Purpose
+Break down objectives into atomic, executable tasks.
+
+---
+
+## Responsibilities
+- Decompose user goals into minimal steps
+- Ensure tasks are clear and independent
+- Preserve logical order when needed
+
+---
+
+## How to Think
+- Simplicity over optimization
+- Each task must be executable without assumptions
+- Avoid hidden dependencies
+- Prefer more steps over implicit complexity
+
+---
+
+## Skills
+- task_decomposition
+- dependency_analysis
+
+---
+
+## Skill Usage Rules
+
+### task_decomposition
+Use when:
+- splitting objectives into steps
+
+### dependency_analysis
+Use when:
+- ordering tasks
+- identifying prerequisites
+
+---
+
+## Output Rules
+
+You MUST return JSON:
+
+{
+  "tasks": [
+    {"id": 1, "description": "task description"}
+  ]
+}
+
+---
+
+## Do
+- Keep tasks atomic
+- Maintain logical order
+- Be explicit
+
+## Don't
+- Generate commands
+- Assume system state
+- Skip steps
+</file>
+
+<file path="agents/reflector/agent.py">
+from utils.ollama_client import OllamaClient
+from utils.json_parser import safe_json_parse
+from sentinel.utils.prompt_loader import build_system_prompt
+
+
+class ReflectorAgent:
+
+    def __init__(self):
+        self.llm = OllamaClient()
+        self.system_prompt = build_system_prompt("agents/reflector")
+
+    def run(self, execution_results: list, task: dict) -> dict:
+
+        user_prompt = f"""
+Execution Results:
+{execution_results}
+
+Task:
+{task}
+"""
+
+        response = self.llm.chat(self.system_prompt, user_prompt)
+
+        return safe_json_parse(response)
+</file>
+
+<file path="agents/reflector/AGENTS.md">
+# Reflector Agent
+
+## Purpose
+Analyze execution results and decide next steps.
+
+---
+
+## Responsibilities
+- Determine execution outcome
+- Classify errors
+- Decide retry or termination
+
+---
+
+## How to Think
+- Focus on outcomes, not intent
+- Be deterministic
+- Prefer retry if fix is possible
+
+---
+
+## Skills
+- error_analysis
+- retry_strategy
+- failure_classification
+
+---
+
+## Skill Usage Rules
+
+### error_analysis
+Use when:
+- parsing command output
+
+### retry_strategy
+Use when:
+- proposing next steps
+
+### failure_classification
+Use when:
+- deciding success, retry, or fatal
+
+---
+
+## Output Rules
+
+You MUST return JSON:
+
+{
+  "status": "success|retry|fatal",
+  "reason": "optional explanation"
+}
+
+---
+
+## Do
+- Be precise
+- Use execution data only
+
+## Don't
+- Generate commands
+- Guess missing data
+</file>
+
+<file path="agents/supervisor/agent.py">
+from utils.ollama_client import OllamaClient
+from utils.json_parser import safe_json_parse
+from utils.prompt_loader import build_system_prompt
+
+
+class SupervisorAgent:
+
+    def __init__(self):
+        self.llm = OllamaClient()
+
+    def run(self, commands: dict, objective: str = "") -> dict:
+
+        system_prompt = build_system_prompt("agents/supervisor", objective)
+
+        user_prompt = f"""
+Commands:
+{commands}
+"""
+
+        response = self.llm.chat(system_prompt, user_prompt)
+
+        return safe_json_parse(response)
+</file>
+
+<file path="agents/supervisor/AGENTS.md">
+# Supervisor Agent
+
+## Purpose
+Validate commands before execution.
+
+---
+
+## Responsibilities
+- Detect dangerous operations
+- Classify risk levels
+- Request user confirmation when needed
+
+---
+
+## How to Think
+- Assume worst-case impact
+- Security over usability
+- Better to over-warn than under-warn
+
+---
+
+## Skills
+- risk_analysis
+- permission_handling
+
+---
+
+## Skill Usage Rules
+
+### risk_analysis
+Use when:
+- evaluating command safety
+
+### permission_handling
+Use when:
+- deciding if confirmation is required
+
+---
+
+## Output Rules
+
+You MUST return JSON:
+
+{
+  "approved": [],
+  "needs_confirmation": [
+    {"cmd": "command", "reason": "risk explanation"}
+  ]
+}
+
+---
+
+## Do
+- Flag risky commands
+- Require confirmation for system changes
+
+## Don't
+- Execute commands
+- Ignore critical risks
+</file>
+
+<file path="agents/task_router/agent.py">
+class TaskRouter:
+
+    def __init__(self, shell_executor, tool_manager):
+        self.shell_executor = shell_executor
+        self.tool_manager = tool_manager
+
+    def route(self, commands):
+
+        routed = []
+
+        for cmd_obj in commands:
+            cmd = cmd_obj["cmd"]
+
+            base = cmd.split()[0]
+
+            if base in ["apt", "pip"]:
+                routed.append({
+                    "executor": "tool_manager",
+                    "cmd": cmd
+                })
+            else:
+                routed.append({
+                    "executor": "shell",
+                    "cmd": cmd
+                })
+
+        return routed
+
+    def execute(self, commands):
+
+        results = []
+
+        routed = self.route(commands)
+
+        for item in routed:
+
+            if item["executor"] == "shell":
+                results.append(self.shell_executor.execute(item["cmd"]))
+
+            elif item["executor"] == "tool_manager":
+                tool = item["cmd"].split()[-1]
+                results.append(self.tool_manager.ensure_tool(tool))
+
+        return results
+</file>
+
+<file path="agents/task_router/AGENTS.md">
+
+</file>
+
+<file path="agents/translator/agent.py">
+from sentinel.utils.command_validator import CommandValidator
+from utils.ollama_client import OllamaClient
+from utils.json_parser import safe_json_parse
+from utils.prompt_loader import build_system_prompt
+
+
+class TranslatorAgent:
+
+    def __init__(self):
+        self.llm = OllamaClient()
+        self.validator = CommandValidator()
+        self.system_prompt = build_system_prompt("agents/translator")
+
+    def validate_commands(self, commands: list) -> list:
+
+        validated = []
+
+        for cmd_obj in commands:
+            cmd = cmd_obj["cmd"]
+
+            result = self.validator.validate(cmd)
+
+            cmd_obj["validation"] = result
+
+            validated.append(cmd_obj)
+
+        return validated
+    
+    def run(self, plan: dict, context: dict) -> dict:
+
+        user_prompt = f"""
+            Tasks:
+            {plan['tasks']}
+
+            Context:
+            {context}
+            """
+
+        response = self.llm.chat(self.system_prompt, user_prompt)
+
+        return safe_json_parse(response)
+</file>
+
+<file path="agents/translator/AGENTS.md">
+# Translator Agent
+
+## Purpose
+Convert tasks into executable system commands.
+
+---
+
+## Responsibilities
+- Translate tasks into valid shell commands
+- Use context and previous errors to improve outputs
+
+---
+
+## How to Think
+- Safety first
+- Precision over brevity
+- Prefer standard tools and commands
+- Avoid assumptions about environment unless specified
+
+---
+
+## Skills
+- command_generation
+- error_aware_translation
+
+---
+
+## Skill Usage Rules
+
+### command_generation
+Use when:
+- converting tasks into commands
+
+### error_aware_translation
+Use when:
+- previous commands failed
+- adjusting commands based on errors
+
+---
+
+## Output Rules
+
+You MUST return JSON:
+
+{
+  "commands": [
+    {
+      "cmd": "command",
+      "risk": "low|medium|high"
+    }
+  ]
+}
+
+---
+
+## Do
+- Generate valid bash commands
+- Keep commands minimal
+- Use safe defaults
+
+## Don't
+- Add explanations
+- Use dangerous commands unless required
+- Hallucinate tools
+</file>
+
+<file path="app/__init__.py">
+
+</file>
+
+<file path="app/config.py">
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+class Config:
+
+    # 🔹 Modelos LLM
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
+    DEFAULT_MODEL = 'balanceado'
+    MODELS = {
+        'defensivo': 'foundation-sec:latest',           # Experto en terminología y SOC
+        'ofensivo':  'dolphin-llama3:latest',           # Sin censura para Pentesting
+        'balanceado': 'qwen2.5:latest'                  # El mejor siguiendo reglas (Recomendado)
+    }
+
+    # 🔹 IP LLM
+    WINDOWS_IP = "192.168.1.49"
+    # WINDOWS_IP = "10.30.212.36"
+
+    # 🔹 Control de ejecución
+    MAX_ITERATIONS = int(os.getenv("MAX_ITERATIONS", 5))
+    TIMEOUT = int(os.getenv("TIMEOUT", 30))
+
+    # 🔹 Seguridad
+    REQUIRE_CONFIRMATION = True
+    ALLOW_DANGEROUS_COMMANDS = False
+
+    # 🔹 Paths
+    BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+    LOG_DIR = os.path.join(BASE_DIR, "logs")
+    MEMORY_DIR = os.path.join(BASE_DIR, "memory")
+
+    # 🔹 Sandbox
+    SANDBOX_MODE = True
+    SANDBOX_PATH = os.path.join(BASE_DIR, "sandbox")
+
+    # 🔹 Debug
+    DEBUG = True
+</file>
+
+<file path="app/constants.py">
+# 🔴 Comandos peligrosos (bloqueo o confirmación obligatoria)
+CRITICAL_COMMAND_PATTERNS = [
+    "rm -rf",
+    "shutdown",
+    "reboot",
+    "mkfs",
+    "dd ",
+    ":(){ :|:& };:",  # fork bomb
+    "chmod 777",
+    "chown",
+    "iptables",
+    "ufw disable"
+]
+
+# 🟡 Comandos que requieren confirmación
+SENSITIVE_COMMANDS = [
+    "apt install",
+    "pip install",
+    "npm install",
+    "git clone",
+    "docker",
+    "systemctl"
+]
+
+# 🟢 Comandos seguros (whitelist inicial)
+SAFE_COMMANDS = [
+    "ls",
+    "pwd",
+    "echo",
+    "cat",
+    "whoami",
+    "date"
+]
+
+# 📊 Estados de ejecución
+STATUS_SUCCESS = "success"
+STATUS_ERROR = "error"
+STATUS_PARTIAL = "partial"
+STATUS_FATAL = "fatal"
+STATUS_RETRY = "retry"
+</file>
+
+<file path="app/main.py">
+import json
+from core.orchestrator import Orchestrator
+from utils.logger import setup_logger
+
+logger = setup_logger()
+
+
+def run():
+    print("🧠 SentinelAI iniciado. Escribe 'exit' para salir.\n")
+
+    orchestrator = Orchestrator()
+
+    while True:
+        try:
+            user_input = input(">> ")
+
+            if user_input.lower() in ["exit", "quit"]:
+                print("👋 Cerrando SentinelAI...")
+                break
+
+            # Procesar input
+            result = orchestrator.handle_user_input(user_input)
+
+            print("\n📤 Resultado:\n")
+            print(result)
+            print("\n" + "=" * 50 + "\n")
+
+        except KeyboardInterrupt:
+            print("\n👋 Interrumpido por el usuario.")
+            break
+
+        except Exception as e:
+            logger.error(f"Error en main loop: {str(e)}")
+            print("❌ Ha ocurrido un error inesperado.")
+
+
+if __name__ == "__main__":
+    run()
+</file>
+
+<file path="chatbot/index.html">
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SentinelAI - CyberSec Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .chat-container { height: calc(100vh - 160px); }
+        .message-agent { background-color: #1e293b; border-left: 4px solid #3b82f6; }
+        .message-user { background-color: #334155; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans">
+
+    <div class="max-w-4xl mx-auto h-screen flex flex-col p-4">
+        <header class="flex items-center justify-between py-4 border-b border-slate-700">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 p-2 rounded-lg">
+                    <i class="fas fa-shield-halved text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Sentinel<span class="text-blue-500">AI</span></h1>
+                    <p class="text-xs text-slate-400">Agente de Ciberseguridad Activo</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <select id="model-select" class="bg-slate-800 text-xs border border-slate-700 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500">
+                    <option value="balanceado" selected>⚖️ Balanceado</option>
+                    <option value="defensivo">🛡️ Defensivo (SOC)</option>
+                    <option value="ofensivo">💀 Ofensivo (Red)</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="relative flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </span>
+                <span class="text-xs font-mono text-slate-400">SOC_NODE_01</span>
+            </div>
+        </header>
+
+        <div id="chat-box" class="chat-container overflow-y-auto my-4 space-y-4 p-2">
+            <div class="message-agent p-4 rounded-r-lg rounded-tl-lg max-w-[85%]">
+                <p class="text-sm">Sistemas listos. Soy **SentinelAI**. Puedo consultar alertas de **Wazuh**, buscar en la **web** o analizar **logs**. ¿En qué puedo ayudarte hoy?</p>
+            </div>
+        </div>
+
+        <div id="loading" class="hidden flex items-center gap-2 mb-4 text-blue-400 text-sm animate-pulse">
+            <i class="fas fa-circle-notch animate-spin"></i>
+            <span>Consultando herramientas de seguridad...</span>
+        </div>
+
+        <div class="relative mt-auto">
+            <input 
+                id="input" 
+                type="text" 
+                placeholder="Escribe tu consulta (ej: 'Analiza las últimas alertas de Wazuh')..." 
+                class="w-full bg-slate-800 border border-slate-700 rounded-xl py-4 pl-6 pr-16 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-2xl"
+                onkeypress="if(event.key === 'Enter') send()"
+            />
+            <button 
+                onclick="send()" 
+                class="absolute right-3 top-2.5 bg-blue-600 hover:bg-blue-500 text-white p-2.5 rounded-lg transition-colors"
+            >
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById("chat-box");
+        const loading = document.getElementById("loading");
+
+        // Detectar cambio en el desplegable
+        document.getElementById("model-select").addEventListener("change", async (e) => {
+            const selectedMode = e.target.value;
+            
+            // Opcional: Mostrar un mensaje visual de que el modelo está cambiando
+            console.log("Cambiando a modo:", selectedMode);
+
+            try {
+                await fetch("/config-model", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ mode: selectedMode })
+                });
+            } catch (error) {
+                console.error("Error al cambiar el modelo:", error);
+            }
+        });
+
+        function appendMessage(role, text) {
+            const msgDiv = document.createElement("div");
+            msgDiv.className = role === 'user' 
+                ? "message-user p-4 rounded-l-lg rounded-tr-lg max-w-[85%] ml-auto text-right" 
+                : "message-agent p-4 rounded-r-lg rounded-tl-lg max-w-[85%]";
+            
+            // Convertimos saltos de línea y formateo básico de markdown
+            const formattedText = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            msgDiv.innerHTML = `<p class="text-sm">${formattedText}</p>`;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        async function send() {
+            const inputField = document.getElementById("input");
+            const question = inputField.value.trim();
+            if (!question) return;
+
+            // Mostrar mensaje del usuario
+            appendMessage('user', question);
+            inputField.value = "";
+            
+            // Mostrar loading
+            loading.classList.remove("hidden");
+
+            try {
+                const res = await fetch("/chat", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        question: question,
+                    })
+                });
+
+                const data = await res.json();
+                
+                // Ocultar loading y mostrar respuesta
+                loading.classList.add("hidden");
+                appendMessage('agent', data.response);
+
+            } catch (error) {
+                loading.classList.add("hidden");
+                appendMessage('agent', "❌ **Error de conexión:** No se pudo contactar con el servidor SOC. Verifica que el backend esté corriendo.");
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>
+</file>
+
+<file path="core/orchestrator.py">
+import uuid
+
+from agents.orchestrator.agent import OrchestratorAgent
+from sentinel.core.planner import Planner
+from sentinel.core.reflector import Reflector
+from sentinel.core.supervisor import Supervisor
+from sentinel.core.task_router import TaskRouter
+from sentinel.core.translator import Translator
+from sentinel.utils.dag_executor import DAGExecutor
+from sentinel.utils.parallel_executor import ParallelExecutor
+# ... resto imports
+
+
+class Orchestrator:
+
+    def __init__(self):
+        self.agent = OrchestratorAgent()
+        self.planner = Planner()
+        self.translator = Translator()
+        self.supervisor = Supervisor()
+        self.reflector = Reflector()
+        self.router = TaskRouter()
+        # Ejecutor de tareas en paralelo en prueba
+        self.parallel_executor = ParallelExecutor(self.router)
+        self.dag_executor = DAGExecutor(self.parallel_executor)
+
+    def handle_user_input(self, user_input: str) -> str:
+
+        # 🔹 Interpretar con LLM
+        interpreted = self.agent.interpret(user_input)
+
+        task = self._create_task(interpreted)
+
+        result = self._execution_loop(task)
+
+        return result
+
+    def _create_task(self, interpreted: dict) -> dict:
+        return {
+            "task_id": str(uuid.uuid4()),
+            "objective": interpreted["objective"],
+            "context": {
+                "history": [],
+                "errors": [],
+                "attempt": 1
+            }
+        }
+
+    # 🔐 HITL mejorado
+    def _ask_user_confirmation(self, commands: list) -> bool:
+
+        explanation = self.agent.format_confirmation(commands)
+
+        print("\n⚠️ Confirmación requerida:\n")
+        print(explanation)
+
+        response = input("\n¿Continuar? (y/n): ")
+
+        return response.lower() == "y"
+    
+    # 🔐 Supervisor mejorado en pruebas
+    def _execution_loop(self, task):
+
+        plan = self.planner.run(task)
+
+        results = self.dag_executor.run(
+            plan,
+            self.translator,
+            self.supervisor
+        )
+
+        reflection = self.reflector.run(results)
+
+        return reflection
+</file>
+
+<file path="core/planner.py">
+from agents.planner.agent import PlannerAgent
+
+
+class Planner:
+
+    def __init__(self):
+        self.agent = PlannerAgent()
+
+    def run(self, task: dict) -> dict:
+        return self.agent.run(task)
+</file>
+
+<file path="core/reflector.py">
+from agents.reflector.agent import ReflectorAgent
+
+
+class Reflector:
+
+    def __init__(self):
+        self.agent = ReflectorAgent()
+
+    def analyze(self, execution_results: list, task: dict) -> dict:
+        return self.agent.run(execution_results, task)
+</file>
+
+<file path="core/supervisor.py">
+from agents.supervisor.agent import SupervisorAgent
+
+
+class Supervisor:
+
+    def __init__(self):
+        self.agent = SupervisorAgent()
+
+    def run(self, commands: dict, objective: str = "") -> dict:
+        return self.agent.run(commands, objective)
+</file>
+
+<file path="core/task_router.py">
+from agents.executors.shell_executor import ShellExecutor
+
+
+class TaskRouter:
+
+    def __init__(self):
+        self.shell_executor = ShellExecutor()
+
+    def execute(self, commands: list) -> list:
+        results = []
+
+        for cmd in commands:
+            result = self.shell_executor.execute(cmd)
+            results.append(result)
+
+        return results
+</file>
+
+<file path="core/translator.py">
+from agents.translator.agent import TranslatorAgent
+
+
+class Translator:
+
+    def __init__(self):
+        self.agent = TranslatorAgent()
+
+    def run(self, plan: dict, context: dict) -> dict:
+        return self.agent.run(plan, context)
+</file>
+
+<file path="run.py">
+from app.main import run
+
+if __name__ == "__main__":
+    run()
+</file>
+
+<file path="skills/orchestrator/ambiguity_resolution/SKILL.md">
+# Skill: ambiguity_resolution
+
+## Description
+Detect and handle ambiguous or incomplete user input.
+
+---
+
+## Capabilities
+- Identify missing or unclear information
+- Detect multiple interpretations
+- Generate clarification requests
+
+---
+
+## How to Think
+- Never guess when ambiguity is high
+- Prefer asking over assuming
+- Minimize user friction when clarifying
+
+---
+
+## Rules
+- DO NOT fabricate missing details
+- Keep clarification questions simple
+- Only ask when necessary
+
+---
+
+## When to Use
+- When user input is unclear
+- When multiple interpretations exist
+
+---
+
+## When NOT to Use
+- When the objective is already precise
+- When ambiguity does not affect execution
+
+---
+
+## Output Expectations
+- Either a refined objective OR a clarification request
+
+---
+
+## Output Format
+{
+  "status": "clarify|resolved",
+  "message": "string"
+}
+
+---
+
+## Failure Modes
+- Over-asking → avoid unnecessary clarification
+- Under-asking → leads to incorrect execution
+
+---
+
+## Examples
+
+### Input
+"haz algo con nginx"
+
+### Output
+{
+  "status": "clarify",
+  "message": "¿Qué acción quieres realizar con nginx?"
+}
+</file>
+
+<file path="skills/orchestrator/confirmation_handling/SKILL.md">
+# Skill: confirmation_handling
+
+## Description
+Manage user confirmation for critical operations.
+
+---
+
+## Capabilities
+- Present actions requiring approval
+- Request explicit confirmation
+- Interpret user responses
+
+---
+
+## How to Think
+- Safety over speed
+- Require explicit approval
+- Ensure user understands the action
+
+---
+
+## Rules
+- ALWAYS require clear yes/no confirmation
+- DO NOT proceed without approval
+- DO NOT assume intent
+
+---
+
+## When to Use
+- During Human-In-The-Loop flow
+- When supervisor flags critical commands
+
+---
+
+## When NOT to Use
+- For safe operations
+- When no user interaction is needed
+
+---
+
+## Output Expectations
+- Clear confirmation request
+
+---
+
+## Output Format
+Plain text
+
+---
+
+## Failure Modes
+- Ambiguous confirmation → must retry
+- Silent execution → forbidden
+
+---
+
+## Examples
+
+### Input
+["sudo apt install nginx"]
+
+### Output
+"Se va a instalar nginx en el sistema. ¿Deseas continuar? (y/n)"
+</file>
+
+<file path="skills/orchestrator/human_comunication/SKILL.md">
+# Skill: human_communication
+
+## Description
+Explain system actions and results in clear, user-friendly language.
+
+---
+
+## Capabilities
+- Translate technical operations into plain language
+- Summarize execution steps
+- Present outputs clearly
+
+---
+
+## How to Think
+- Assume the user is not technical
+- Clarity over precision
+- Avoid unnecessary detail
+
+---
+
+## Rules
+- DO NOT use technical jargon unless necessary
+- Keep explanations concise
+- Focus on what matters to the user
+
+---
+
+## When to Use
+- When presenting results
+- When explaining system behavior
+- During HITL interactions
+
+---
+
+## When NOT to Use
+- When structured JSON is required
+- When communicating with other agents
+
+---
+
+## Output Expectations
+- Natural language explanation
+
+---
+
+## Output Format
+Plain text
+
+---
+
+## Failure Modes
+- Too technical → user confusion
+- Too vague → lack of understanding
+
+---
+
+## Examples
+
+### Input
+[{"cmd": "ls"}]
+
+### Output
+"Voy a listar los archivos del directorio actual."
+</file>
+
+<file path="skills/orchestrator/intent_interpretation/SKILL.md">
+name: intent_interpretation
+
+# Skill: intent_interpretation
+
+## Description
+Convert raw user input into a clear, explicit, and actionable objective.
+
+---
+
+## Capabilities
+- Identify user intent from natural language
+- Extract the primary goal
+- Filter irrelevant or noisy information
+- Normalize vague expressions into concrete objectives
+
+---
+
+## How to Think
+- Focus on WHAT the user wants, not HOW to do it
+- Prefer clarity over completeness
+- Do not assume hidden intentions
+- If ambiguity is high, flag it instead of guessing
+
+---
+
+## Rules
+- The objective MUST be concise and actionable
+- DO NOT include implementation details
+- DO NOT generate commands
+- DO NOT invent missing information
+
+---
+
+## When to Use
+- When receiving raw user input
+- When input is ambiguous or unstructured
+- At the start of the task lifecycle
+
+---
+
+## When NOT to Use
+- When the objective is already clearly defined
+- When working with structured data
+
+---
+
+## Output Expectations
+- A single clear objective string
+
+---
+
+## Output Format
+"objective": "string"
+
+---
+
+## Failure Modes
+- If multiple interpretations exist → return the most probable and note ambiguity
+- If input is too vague → request clarification
+
+---
+
+## Examples
+
+### Input
+"quiero ver los archivos de esta carpeta"
+
+### Output
+"listar los archivos del directorio actual"
+
+---
+
+### Input
+"haz algo con nginx"
+
+### Output
+"objetivo ambiguo: el usuario no especifica acción concreta"
+</file>
+
+<file path="skills/orchestrator/objective_structuring/SKILL.md">
+# Skill: objective_structuring
+
+## Description
+Transform an interpreted objective into a structured JSON format.
+
+---
+
+## Capabilities
+- Convert objectives into structured representations
+- Add metadata such as priority and constraints
+- Normalize outputs for downstream agents
+
+---
+
+## How to Think
+- Structure is more important than verbosity
+- Keep the format minimal but complete
+- Avoid unnecessary fields
+
+---
+
+## Rules
+- ALWAYS follow the required JSON schema
+- DO NOT include explanations
+- DO NOT modify the original intent
+
+---
+
+## When to Use
+- After interpreting user intent
+- Before sending data to Planner
+
+---
+
+## When NOT to Use
+- When working with already structured JSON
+- When interacting with the user
+
+---
+
+## Output Expectations
+- Clean structured JSON
+
+---
+
+## Output Format
+{
+  "objective": "string",
+  "constraints": [],
+  "priority": "low|medium|high"
+}
+
+---
+
+## Failure Modes
+- Missing fields → must be filled with defaults
+- Ambiguous priority → default to "medium"
+
+---
+
+## Examples
+
+### Input
+"listar los archivos del directorio actual"
+
+### Output
+{
+  "objective": "listar los archivos del directorio actual",
+  "constraints": [],
+  "priority": "low"
+}
+</file>
+
+<file path="skills/orchestrator/risk_explanation/SKILL.md">
+# Skill: risk_explanation
+
+## Description
+Explain risks associated with system commands or actions.
+
+---
+
+## Capabilities
+- Identify potential dangers
+- Translate technical risks into understandable language
+- Provide consequences of actions
+
+---
+
+## How to Think
+- Assume worst-case scenario
+- Be explicit and direct
+- Do not downplay risks
+
+---
+
+## Rules
+- ALWAYS explain consequences
+- DO NOT omit critical details
+- DO NOT exaggerate unnecessarily
+
+---
+
+## When to Use
+- When commands are flagged as risky
+- Before requesting user confirmation
+
+---
+
+## When NOT to Use
+- When actions are clearly safe
+- When no user interaction is required
+
+---
+
+## Output Expectations
+- Clear explanation of risk and consequences
+
+---
+
+## Output Format
+Plain text
+
+---
+
+## Failure Modes
+- Underestimating risk → dangerous
+- Overestimating risk → unnecessary friction
+
+---
+
+## Examples
+
+### Input
+"rm -rf /"
+
+### Output
+"Este comando eliminaría todos los archivos del sistema, lo que podría dejar el sistema inutilizable."
+</file>
+
+<file path="skills/planner/dependency_analysis/SKILL.md">
+# Skill: dependency_analysis
+
+## Description
+Determine dependencies between tasks to ensure correct execution order.
+
+---
+
+## Capabilities
+- Identify task relationships
+- Build dependency graph (DAG)
+
+---
+
+## How to Think
+- A task depends on another ONLY if it requires its output
+- Avoid unnecessary dependencies → enables parallelism
+
+---
+
+## Rules
+- Dependencies MUST be explicit
+- DO NOT create circular dependencies
+
+---
+
+## When to Use
+- After task decomposition
+
+---
+
+## Output Expectations
+Tasks with depends_on field
+
+---
+
+## Output Format
+"depends_on": [task_ids]
+
+---
+
+## Failure Modes
+- Missing dependencies → race conditions
+- Too many dependencies → no parallelism
+</file>
+
+<file path="skills/planner/parallelization_strategy/SKILL.md">
+# Skill: parallelization_strategy
+
+## Description
+Decide which tasks can be executed in parallel and which must be sequential.
+
+---
+
+## Capabilities
+- Identify independent tasks
+- Assign execution modes
+
+---
+
+## How to Think
+- If tasks do not share data → parallel
+- If tasks modify shared resources → sequential
+- If task is critical → exclusive
+
+---
+
+## Rules
+- Maximize parallel execution safely
+- Avoid parallel execution for destructive tasks
+
+---
+
+## When to Use
+- After dependency analysis
+
+---
+
+## Output Expectations
+Tasks with execution mode
+
+---
+
+## Output Format
+"mode": "parallel|sequential|exclusive"
+
+---
+
+## Failure Modes
+- Unsafe parallelism
+- Over-sequentialization
+</file>
+
+<file path="skills/planner/plan_structuring/SKILL.md">
+# Skill: plan_structuring
+
+## Description
+Build the final execution plan in DAG format.
+
+---
+
+## Capabilities
+- Combine tasks, dependencies, and execution modes
+- Produce structured plan
+
+---
+
+## How to Think
+- Plan must be deterministic
+- Structure must be clean and minimal
+
+---
+
+## Rules
+- MUST follow JSON format strictly
+- Include id, description, depends_on, mode
+
+---
+
+## Output Format
+{
+  "tasks": [
+    {
+      "id": 1,
+      "description": "string",
+      "depends_on": [],
+      "mode": "parallel|sequential|exclusive"
+    }
+  ]
+}
+
+---
+
+## Failure Modes
+- Invalid JSON
+- Missing fields
+</file>
+
+<file path="skills/planner/task_decomposition/SKILL.md">
+# Skill: task_decomposition
+
+## Description
+Break down an objective into atomic and executable tasks.
+
+---
+
+## Capabilities
+- Split complex objectives into smaller steps
+- Ensure tasks are independently executable when possible
+- Minimize implicit dependencies
+
+---
+
+## How to Think
+- Prefer independent tasks → enables parallel execution
+- Only create dependencies when strictly necessary
+- Smaller tasks are better than complex ones
+
+---
+
+## Rules
+- Each task MUST be atomic
+- Tasks MUST be clearly described
+- DO NOT generate commands
+
+---
+
+## When to Use
+- Always when planning tasks
+
+---
+
+## Output Expectations
+List of tasks
+
+---
+
+## Failure Modes
+- Tasks too large → reduce granularity
+- Hidden dependencies → must be explicit
+</file>
+
+<file path="skills/reflector/context_feedback/SKILL.md">
+# Skill: context_feedback
+
+## Description
+Provide feedback to improve future iterations.
+
+---
+
+## Capabilities
+- Store useful insights from execution
+- Highlight patterns of failure
+
+---
+
+## How to Think
+- Learn from past attempts
+- Extract reusable knowledge
+
+---
+
+## Rules
+- Keep feedback concise
+- Focus on actionable insights
+
+---
+
+## When to Use
+- After retry or failure
+
+---
+
+## Output Expectations
+{
+  "insight": "string"
+}
+
+---
+
+## Examples
+
+### Output
+{
+  "insight": "El comando falló porque la herramienta no estaba instalada"
+}
+</file>
+
+<file path="skills/reflector/error_analysis/SKILL.md">
+# Skill: error_analysis
+
+## Description
+Analyze execution outputs and identify errors, warnings, or anomalies.
+
+---
+
+## Capabilities
+- Parse command outputs (stdout, stderr)
+- Detect known error patterns
+- Extract meaningful error messages
+
+---
+
+## How to Think
+- Focus on factual output, not assumptions
+- Prioritize stderr over stdout for errors
+- Identify root cause, not just symptoms
+
+---
+
+## Rules
+- DO NOT invent errors
+- DO NOT ignore stderr
+- MUST extract the most relevant issue
+
+---
+
+## When to Use
+- After command execution
+- When analyzing logs
+
+---
+
+## When NOT to Use
+- Before execution
+- When no output is available
+
+---
+
+## Output Expectations
+- Clear identification of error or success
+
+---
+
+## Output Format
+{
+  "error_detected": true|false,
+  "error_type": "string",
+  "message": "string"
+}
+
+---
+
+## Failure Modes
+- Missing hidden errors
+- Misinterpreting warnings as failures
+
+---
+
+## Examples
+
+### Input
+stderr: "command not found"
+
+### Output
+{
+  "error_detected": true,
+  "error_type": "missing_command",
+  "message": "command not found"
+}
+</file>
+
+<file path="skills/reflector/executation_summarization/SKILL.md">
+# Skill: execution_summarization
+
+## Description
+Summarize execution results into concise information.
+
+---
+
+## Capabilities
+- Aggregate multiple command results
+- Highlight key outcomes
+
+---
+
+## How to Think
+- Focus on outcome, not logs
+- Keep summary minimal
+
+---
+
+## Rules
+- DO NOT include raw logs
+- DO NOT add irrelevant details
+
+---
+
+## When to Use
+- Before sending result to orchestrator
+
+---
+
+## Output Expectations
+Plain text summary
+
+---
+
+## Examples
+
+### Output
+"Los comandos se ejecutaron correctamente y los archivos fueron listados."
+</file>
+
+<file path="skills/reflector/failure_classification/SKILL.md">
+# Skill: failure_classification
+
+## Description
+Classify execution results into success, retryable failure, or fatal failure.
+
+---
+
+## Capabilities
+- Determine severity of errors
+- Decide if retry is possible
+
+---
+
+## How to Think
+- Prefer retry if fix is possible
+- Fatal = cannot be fixed automatically
+- Success = no relevant errors
+
+---
+
+## Rules
+- MUST classify every result
+- DO NOT leave status undefined
+
+---
+
+## When to Use
+- After error analysis
+
+---
+
+## Output Expectations
+{
+  "status": "success|retry|fatal"
+}
+
+---
+
+## Failure Modes
+- Misclassifying fatal as retry
+- Overusing retry
+
+---
+
+## Examples
+
+### Input
+missing_command
+
+### Output
+{
+  "status": "retry"
+}
+</file>
+
+<file path="skills/reflector/retry_strategy/SKILL.md">
+# Skill: retry_strategy
+
+## Description
+Generate guidance for retrying failed tasks.
+
+---
+
+## Capabilities
+- Suggest alternative approaches
+- Modify execution strategy
+
+---
+
+## How to Think
+- Fix root cause, not symptoms
+- Try minimal changes first
+- Avoid repeating same failure
+
+---
+
+## Rules
+- DO NOT repeat identical commands
+- MUST address the error cause
+
+---
+
+## When to Use
+- When failure is retryable
+
+---
+
+## Output Expectations
+{
+  "action": "string",
+  "hint": "string"
+}
+
+---
+
+## Failure Modes
+- Suggesting same failing approach
+- Overcomplicating solution
+
+---
+
+## Examples
+
+### Input
+missing_command
+
+### Output
+{
+  "action": "install_missing_tool",
+  "hint": "install required package"
+}
+</file>
+
+<file path="skills/supervisor/command_sanitization/SKILL.md">
+# Skill: command_sanitization
+
+## Description
+Clean and normalize commands to ensure safe and consistent execution.
+
+---
+
+## Capabilities
+- Remove unnecessary or dangerous flags
+- Normalize syntax
+- Enforce safe defaults
+
+---
+
+## How to Think
+- Simplicity over complexity
+- Remove anything not strictly needed
+- Avoid risky flags unless required
+
+---
+
+## Rules
+- DO NOT alter command intent
+- REMOVE unnecessary sudo usage
+- ENSURE command is minimal
+
+---
+
+## When to Use
+- After command generation
+- Before risk analysis
+
+---
+
+## When NOT to Use
+- When command is already validated
+
+---
+
+## Output Expectations
+- Cleaned commands
+
+---
+
+## Output Format
+{
+  "commands": [
+    {"cmd": "string"}
+  ]
+}
+
+---
+
+## Failure Modes
+- Over-modifying commands
+- Breaking valid commands
+
+---
+
+## Examples
+
+### Input
+"sudo ls -la"
+
+### Output
+{
+  "commands": [
+    {"cmd": "ls -la"}
+  ]
+}
+</file>
+
+<file path="skills/supervisor/execution_preparation/SKILL.md">
+# Skill: execution_preparation
+
+## Description
+Prepare validated commands for execution by structuring them for downstream systems.
+
+---
+
+## Capabilities
+- Combine validated and approved commands
+- Structure final execution payload
+- Ensure compatibility with executor
+
+---
+
+## How to Think
+- Only approved commands should reach execution
+- Maintain order when required
+- Keep structure clean
+
+---
+
+## Rules
+- DO NOT include blocked commands
+- DO NOT include unapproved commands
+- MUST follow executor format
+
+---
+
+## When to Use
+- Right before sending to TaskRouter
+
+---
+
+## When NOT to Use
+- Before validation or confirmation
+
+---
+
+## Output Expectations
+- Final execution-ready commands
+
+---
+
+## Output Format
+{
+  "commands": [
+    {"cmd": "string"}
+  ]
+}
+
+---
+
+## Failure Modes
+- Including unsafe commands
+- Missing commands
+
+---
+
+## Examples
+
+### Output
+{
+  "commands": [
+    {"cmd": "ls"}
+  ]
+}
+</file>
+
+<file path="skills/supervisor/permission_handling/SKILL.md">
+# Skill: permission_handling
+
+## Description
+Determine which commands require explicit user confirmation before execution.
+
+---
+
+## Capabilities
+- Identify commands requiring approval
+- Separate safe and unsafe operations
+- Prepare confirmation requests
+
+---
+
+## How to Think
+- High risk → always ask
+- Medium risk → usually ask
+- Low risk → auto-approve
+
+---
+
+## Rules
+- MUST require confirmation for high-risk commands
+- DO NOT auto-approve destructive actions
+- DO NOT skip confirmation for system modifications
+
+---
+
+## When to Use
+- After risk analysis
+- Before execution
+
+---
+
+## When NOT to Use
+- When all commands are low risk
+
+---
+
+## Output Expectations
+- Commands split by approval status
+
+---
+
+## Output Format
+{
+  "approved": [
+    {"cmd": "string"}
+  ],
+  "needs_confirmation": [
+    {
+      "cmd": "string",
+      "reason": "string"
+    }
+  ]
+}
+
+---
+
+## Failure Modes
+- Missing critical confirmation
+- Asking confirmation for trivial actions
+
+---
+
+## Examples
+
+### Input
+"apt install nginx"
+
+### Output
+{
+  "approved": [],
+  "needs_confirmation": [
+    {
+      "cmd": "apt install nginx -y",
+      "reason": "Installs software on the system"
+    }
+  ]
+}
+</file>
+
+<file path="skills/supervisor/policy_enforcement/SKILL.md">
+# Skill: policy_enforcement
+
+## Description
+Ensure commands comply with system safety policies and constraints.
+
+---
+
+## Capabilities
+- Enforce security rules
+- Block forbidden commands
+- Apply system restrictions
+
+---
+
+## How to Think
+- Security over functionality
+- If in doubt → block or escalate
+- Policies override user intent
+
+---
+
+## Rules
+- MUST block forbidden patterns
+- DO NOT allow system-critical operations without control
+- ALWAYS enforce defined policies
+
+---
+
+## When to Use
+- Before execution
+- After validation
+
+---
+
+## When NOT to Use
+- When no policies are defined
+
+---
+
+## Output Expectations
+- Allowed and blocked commands
+
+---
+
+## Output Format
+{
+  "allowed": [],
+  "blocked": [
+    {
+      "cmd": "string",
+      "reason": "string"
+    }
+  ]
+}
+
+---
+
+## Failure Modes
+- Allowing forbidden commands
+- Blocking safe commands unnecessarily
+
+---
+
+## Examples
+
+### Input
+"rm -rf /"
+
+### Output
+{
+  "allowed": [],
+  "blocked": [
+    {
+      "cmd": "rm -rf /",
+      "reason": "Critical system destruction command"
+    }
+  ]
+}
+</file>
+
+<file path="skills/supervisor/risk_analysis/SKILL.md">
+# Skill: risk_analysis
+
+## Description
+Analyze commands to determine their risk level and potential impact on the system.
+
+---
+
+## Capabilities
+- Detect destructive or irreversible operations
+- Identify system-wide changes
+- Evaluate potential side effects of commands
+
+---
+
+## How to Think
+- Assume worst-case scenario
+- A command is dangerous if it modifies, deletes, or installs system components
+- Read-only operations are generally low risk
+
+---
+
+## Rules
+- MUST evaluate every command
+- DO NOT ignore command flags or arguments
+- DO NOT assume commands are safe
+
+---
+
+## When to Use
+- Before any command execution
+- After Translator generates commands
+
+---
+
+## When NOT to Use
+- When working with non-executable data
+- After execution has already occurred
+
+---
+
+## Output Expectations
+- Risk classification for each command
+
+---
+
+## Output Format
+{
+  "commands": [
+    {
+      "cmd": "string",
+      "risk": "low|medium|high",
+      "reason": "string"
+    }
+  ]
+}
+
+---
+
+## Failure Modes
+- Underestimating risk → dangerous execution
+- Overestimating risk → unnecessary friction
+
+---
+
+## Examples
+
+### Input
+"rm test.txt"
+
+### Output
+{
+  "commands": [
+    {
+      "cmd": "rm test.txt",
+      "risk": "medium",
+      "reason": "Deletes a file"
+    }
+  ]
+}
+</file>
+
+<file path="skills/task_router/batch_optimization/SKILL.md">
+# Skill: batch_optimization
+
+## Description
+Group compatible commands for efficient execution.
+
+---
+
+## Capabilities
+- Merge similar commands
+- Reduce execution overhead
+
+---
+
+## How to Think
+- Group commands with same executor
+- Avoid unnecessary fragmentation
+
+---
+
+## Rules
+- DO NOT merge incompatible commands
+- Preserve execution order if needed
+
+---
+
+## Output Format
+{
+  "batches": [
+    {
+      "executor": "string",
+      "commands": []
+    }
+  ]
+}
+</file>
+
+<file path="skills/task_router/command_clasification/SKILL.md">
+# Skill: command_classification
+
+## Description
+Classify commands into execution categories.
+
+---
+
+## Capabilities
+- Identify command type (filesystem, network, package, etc.)
+- Map commands to executor types
+
+---
+
+## How to Think
+- Focus on WHAT the command does
+- Ignore syntax complexity
+- Use categories, not exact matching
+
+---
+
+## Rules
+- MUST classify every command
+- DO NOT leave commands unclassified
+
+---
+
+## When to Use
+- Before routing commands
+
+---
+
+## Output Format
+{
+  "commands": [
+    {
+      "cmd": "string",
+      "type": "filesystem|network|package|system|other"
+    }
+  ]
+}
+</file>
+
+<file path="skills/task_router/executor_selection/SKILL.md">
+# Skill: executor_selection
+
+## Description
+Select the appropriate executor agent for each command.
+
+---
+
+## Capabilities
+- Map command types to executors
+- Optimize distribution of workload
+
+---
+
+## How to Think
+- Each executor has a specialization
+- Prefer specialized executor over generic
+
+---
+
+## Rules
+- MUST assign an executor
+- DO NOT assign multiple executors to one command
+
+---
+
+## Output Format
+{
+  "routing": [
+    {
+      "cmd": "string",
+      "executor": "shell|tool_manager|api_executor"
+    }
+  ]
+}
+</file>
+
+<file path="skills/translator/command_generation/SKILL.md">
+# Skill: command_generation
+
+## Description
+Convert structured tasks into precise and executable shell commands.
+
+---
+
+## Capabilities
+- Translate task descriptions into valid shell commands
+- Use standard Linux tools and conventions
+- Generate minimal and efficient commands
+
+---
+
+## How to Think
+- Focus on HOW to execute the task
+- Prefer simple commands over complex pipelines
+- Use widely available tools
+- Avoid unnecessary flags
+
+---
+
+## Rules
+- Commands MUST be executable
+- DO NOT include explanations
+- DO NOT chain commands unless necessary
+- DO NOT assume unavailable tools
+
+---
+
+## When to Use
+- When converting tasks into commands
+
+---
+
+## When NOT to Use
+- When analyzing errors
+- When validating risk
+
+---
+
+## Output Expectations
+- A list of shell commands
+
+---
+
+## Output Format
+{
+  "commands": [
+    {
+      "cmd": "string",
+      "risk": "low|medium|high"
+    }
+  ]
+}
+
+---
+
+## Failure Modes
+- Invalid command syntax
+- Overcomplicated commands
+- Using non-installed tools
+
+---
+
+## Examples
+
+### Input
+"listar archivos"
+
+### Output
+{
+  "commands": [
+    {"cmd": "ls", "risk": "low"}
+  ]
+}
+</file>
+
+<file path="skills/translator/enviroment_awareness/SKILL.md">
+# Skill: environment_awareness
+
+## Description
+Adapt commands based on the execution environment.
+
+---
+
+## Capabilities
+- Consider OS (Linux, Windows, MacOS, etc.)
+- Adjust command syntax accordingly
+- Avoid incompatible commands
+
+---
+
+## How to Think
+- Do not assume environment blindly
+- Prefer portable commands
+- Avoid OS-specific features unless required
+
+---
+
+## Rules
+- Use standard POSIX tools when possible
+- Avoid platform-specific hacks
+
+---
+
+## When to Use
+- When generating commands
+- When previous commands failed
+
+---
+
+## When NOT to Use
+- When environment is explicitly defined
+
+---
+
+## Output Expectations
+- Compatible commands
+
+---
+
+## Output Format
+Same as command_generation
+
+---
+
+## Failure Modes
+- Using incompatible syntax
+- Assuming wrong OS
+
+---
+
+## Examples
+
+### Input
+"listar archivos"
+
+### Output
+{
+  "commands": [
+    {"cmd": "ls", "risk": "low"}
+  ]
+}
+</file>
+
+<file path="skills/translator/error_aware_translation/SKILL.md">
+# Skill: error_aware_translation
+
+## Description
+Adjust command generation based on previous execution errors.
+
+---
+
+## Capabilities
+- Analyze previous errors
+- Modify commands accordingly
+- Retry with improved approach
+
+---
+
+## How to Think
+- Learn from failure
+- Do not repeat the same mistake
+- Try alternative approaches
+
+---
+
+## Rules
+- MUST consider previous errors
+- DO NOT repeat failed commands unchanged
+
+---
+
+## When to Use
+- When retrying tasks
+- When errors are present in context
+
+---
+
+## When NOT to Use
+- On first attempt
+
+---
+
+## Output Expectations
+- Improved commands
+
+---
+
+## Output Format
+Same as command_generation
+
+---
+
+## Failure Modes
+- Repeating failing commands
+- Overcorrecting unnecessarily
+
+---
+
+## Examples
+
+### Input
+Error: command not found
+
+### Output
+{
+  "commands": [
+    {"cmd": "apt install tool -y", "risk": "medium"}
+  ]
+}
+</file>
+
+<file path="skills/translator/safe_command_generation/SKILL.md">
+# Skill: safe_command_generation
+
+## Description
+Ensure generated commands are safe and non-destructive by default.
+
+---
+
+## Capabilities
+- Detect potentially dangerous operations
+- Prefer safe alternatives
+- Reduce risk when possible
+
+---
+
+## How to Think
+- Safety first, execution second
+- Assume the environment is sensitive
+- Avoid irreversible actions
+
+---
+
+## Rules
+- DO NOT generate destructive commands unless explicitly required
+- Prefer read-only operations
+- Avoid system-wide changes
+
+---
+
+## When to Use
+- When generating any command
+- When uncertainty about impact exists
+
+---
+
+## When NOT to Use
+- When explicitly instructed to perform destructive actions
+
+---
+
+## Output Expectations
+- Commands with minimized risk
+
+---
+
+## Output Format
+Same as command_generation
+
+---
+
+## Failure Modes
+- Generating unsafe commands unnecessarily
+- Blocking valid operations incorrectly
+
+---
+
+## Examples
+
+### Input
+"eliminar archivo test.txt"
+
+### Output
+{
+  "commands": [
+    {"cmd": "rm test.txt", "risk": "medium"}
+  ]
+}
+</file>
+
+<file path="skills/translator/tool_detection/SKILL.md">
+# Skill: tool_detection
+
+## Description
+Detect when a required tool is missing and suggest installation.
+
+---
+
+## Capabilities
+- Identify missing tools from context
+- Suggest installation commands
+
+---
+
+## How to Think
+- If command fails due to missing tool → fix it
+- Prefer installing over failing
+
+---
+
+## Rules
+- Only suggest installation if necessary
+- Use standard package managers
+
+---
+
+## When to Use
+- When command fails due to missing tool
+
+---
+
+## When NOT to Use
+- When tool is already available
+
+---
+
+## Output Expectations
+- Commands including installation if needed
+
+---
+
+## Output Format
+Same as command_generation
+
+---
+
+## Failure Modes
+- Installing unnecessary tools
+- Wrong package name
+
+---
+
+## Examples
+
+### Input
+"nginx not found"
+
+### Output
+{
+  "commands": [
+    {"cmd": "apt install nginx -y", "risk": "high"}
+  ]
+}
+</file>
+
+<file path="utils/agent_parser.py">
+import re
+from utils.prompt_loader import load_file
+
+
+def extract_skills(agent_md_path: str) -> list:
+    """
+    Extrae skills desde la sección '## Skills' de AGENTS.md
+    """
+
+    content = load_file(agent_md_path)
+
+    # buscar sección Skills
+    skills_section = re.search(r"## Skills(.*?)##", content, re.DOTALL)
+
+    if not skills_section:
+        # si es la última sección
+        skills_section = re.search(r"## Skills(.*)", content, re.DOTALL)
+
+    if not skills_section:
+        return []
+
+    skills_block = skills_section.group(1)
+
+    # extraer líneas tipo "- skill_name"
+    skills = re.findall(r"-\s*([a-zA-Z0-9_]+)", skills_block)
+
+    return skills
+</file>
+
+<file path="utils/command_validator.py">
+import shutil
+import shlex
+
+
+class CommandValidator:
+
+    def __init__(self):
+        self.dangerous_patterns = [
+            "rm -rf /",
+            "mkfs",
+            "dd ",
+            "shutdown",
+            "reboot"
+        ]
+
+    def validate(self, cmd: str) -> dict:
+        """
+        Valida:
+        - existencia del comando
+        - seguridad básica
+        """
+
+        # 🔹 seguridad básica
+        for pattern in self.dangerous_patterns:
+            if pattern in cmd:
+                return {
+                    "valid": False,
+                    "reason": "dangerous_command"
+                }
+
+        # 🔹 parseo
+        try:
+            parts = shlex.split(cmd)
+            base_cmd = parts[0]
+        except Exception:
+            return {
+                "valid": False,
+                "reason": "invalid_syntax"
+            }
+
+        # 🔹 comprobar si existe
+        if shutil.which(base_cmd) is None:
+            return {
+                "valid": False,
+                "reason": "command_not_found"
+            }
+
+        return {
+            "valid": True,
+            "reason": "ok"
+        }
+</file>
+
+<file path="utils/dag_executor.py">
+class DAGExecutor:
+
+    def __init__(self, parallel_executor, router):
+        self.parallel_executor = parallel_executor
+        self.router = router
+
+    def run(self, plan, translator, supervisor):
+
+        tasks = plan["tasks"]
+
+        completed = {}
+        pending = {t["id"]: t for t in tasks}
+
+        while pending:
+
+            ready = [
+                t for t in pending.values()
+                if all(dep in completed for dep in t["depends_on"])
+            ]
+
+            if not ready:
+                raise Exception("Deadlock detected")
+
+            # 🔥 separar por modo
+            parallel_tasks = []
+            sequential_tasks = []
+            exclusive_tasks = []
+
+            for task in ready:
+                mode = task.get("mode", "parallel")
+
+                if mode == "parallel":
+                    parallel_tasks.append(task)
+                elif mode == "sequential":
+                    sequential_tasks.append(task)
+                elif mode == "exclusive":
+                    exclusive_tasks.append(task)
+
+            # 🔥 1. ejecutar exclusivas (una a una)
+            for task in exclusive_tasks:
+                result = self._execute_task(task, translator, supervisor)
+                completed[task["id"]] = result
+                del pending[task["id"]]
+
+            # 🔥 2. ejecutar secuenciales
+            for task in sequential_tasks:
+                result = self._execute_task(task, translator, supervisor)
+                completed[task["id"]] = result
+                del pending[task["id"]]
+
+            # 🔥 3. ejecutar paralelas
+            if parallel_tasks:
+                batch = {}
+
+                for task in parallel_tasks:
+                    translated = translator.run({"tasks": [task]}, {})
+                    validated = supervisor.run(translated)
+
+                    batch[task["id"]] = validated
+
+                results = self.parallel_executor.execute(batch)
+
+                for task_id, result in results.items():
+                    completed[task_id] = result
+                    del pending[task_id]
+
+        return completed
+
+    def _execute_task(self, task, translator, supervisor):
+        translated = translator.run({"tasks": [task]}, {})
+        validated = supervisor.run(translated)
+        return self.router.execute(validated["commands"])
+</file>
+
+<file path="utils/debug.py">
+from utils.logger import logger
+import json
+
+
+def debug_dump(title, data):
+    logger.debug(f"[DEBUG] {title}")
+    logger.debug(json.dumps(data, indent=2))
+</file>
+
+<file path="utils/json_parser.py">
+import json
+
+
+def safe_json_parse(text: str):
+    """
+    Intenta extraer JSON incluso si el modelo añade texto extra.
+    """
+
+    try:
+        return json.loads(text)
+    except:
+        pass
+
+    # intentar encontrar bloque JSON
+    try:
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        return json.loads(text[start:end])
+    except:
+        raise ValueError("No se pudo parsear JSON del modelo")
+</file>
+
+<file path="utils/logger.py">
+import logging
+import os
+
+def setup_logger():
+    logger = logging.getLogger("SentinelAI")
+
+    if logger.handlers:
+        return logger  # evita duplicados
+
+    logger.setLevel(logging.DEBUG)
+
+    os.makedirs("logs", exist_ok=True)
+
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    )
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    
+    file_handler = logging.FileHandler("logs/app.log")
+    file_handler.setFormatter(formatter)
+
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    return logger
+</file>
+
+<file path="utils/ollama_client.py">
+import requests
+import json
+from app.config import Config
+
+
+class OllamaClient:
+
+    def __init__(self, LLM):
+        self.base_url = f"http://{Config.WINDOWS_IP}:11434/api/chat"
+        self.model = LLM
+
+    def chat(self, system_prompt: str, user_prompt: str) -> str:
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "stream": False
+        }
+
+        response = requests.post(self.base_url, json=payload)
+
+        if response.status_code != 200:
+            raise Exception(f"Ollama error: {response.text}")
+
+        data = response.json()
+        return data["message"]["content"]
+</file>
+
+<file path="utils/parallel_executor.py">
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+class ParallelExecutor:
+
+    def __init__(self, router):
+        self.router = router
+
+    def execute(self, tasks_with_commands: dict) -> dict:
+        """
+        tasks_with_commands:
+        {
+            task_id: {
+                "commands": [...]
+            }
+        }
+        """
+
+        results = {}
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {}
+
+            for task_id, data in tasks_with_commands.items():
+                futures[executor.submit(self.router.execute, data["commands"])] = task_id
+
+            for future in as_completed(futures):
+                task_id = futures[future]
+                results[task_id] = future.result()
+
+        return results
+</file>
+
+<file path="utils/prompt_loader.py">
+import os
+from utils.agent_parser import extract_skills
+from utils.skill_loader import load_skills
+
+
+def load_file(path: str) -> str:
+    if not os.path.exists(path):
+        return ""
+
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def build_system_prompt(agent_dir: str) -> str:
+    """
+    Construye el prompt completo con:
+    - AGENTS.md
+    - skills dinámicos
+    """
+
+    agent_md_path = os.path.join(agent_dir, "AGENTS.md")
+
+    agent_md = load_file(agent_md_path)
+
+    # 🔹 EXTRAER SKILLS
+    skills = extract_skills(agent_md_path)
+
+    # 🔹 CARGAR SOLO ESAS SKILLS
+    skills_content = load_skills(skills)
+
+    system_prompt = f"""
+{agent_md}
+
+---
+
+## AVAILABLE SKILLS
+{skills_content}
+
+---
+
+## GLOBAL RULES
+- ALWAYS return valid JSON when required
+- NEVER add explanations unless explicitly requested
+- FOLLOW output formats strictly
+"""
+
+    return system_prompt.strip()
+</file>
+
+<file path="utils/skill_loader.py">
+import os
+from utils.prompt_loader import load_file
+
+
+SKILLS_PATH = "skills"
+
+
+def load_skills(skill_names: list) -> str:
+    """
+    Carga el contenido de los skills necesarios
+    """
+
+    skills_content = []
+
+    for skill in skill_names:
+        path = os.path.join(SKILLS_PATH, f"{skill}.md")
+
+        if os.path.exists(path):
+            content = load_file(path)
+            skills_content.append(f"# Skill: {skill}\n{content}")
+        else:
+            skills_content.append(f"# Skill: {skill}\n(Not found)")
+
+    return "\n\n".join(skills_content)
+</file>
+
+<file path="utils/tracer.py">
+import json
+import time
+import uuid
+import os
+
+TRACE_FILE = "logs/traces.json"
+
+
+class Tracer:
+
+    def __init__(self):
+        self.trace_id = str(uuid.uuid4())
+        self.steps = []
+
+    def log(self, agent, action, data=None):
+        self.steps.append({
+            "timestamp": time.time(),
+            "agent": agent,
+            "action": action,
+            "data": data
+        })
+
+    def save(self):
+        os.makedirs("logs", exist_ok=True)
+
+        trace = {
+            "trace_id": self.trace_id,
+            "steps": self.steps
+        }
+
+        with open(TRACE_FILE, "a") as f:
+            f.write(json.dumps(trace) + "\n")
+
+        return trace
+</file>
+
+</files>

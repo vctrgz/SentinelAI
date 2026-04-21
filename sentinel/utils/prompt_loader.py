@@ -1,14 +1,8 @@
 import os
+from sentinel.utils.file_utils import load_file
 from utils.agent_parser import extract_skills
 from utils.skill_loader import load_skills
 
-
-def load_file(path: str) -> str:
-    if not os.path.exists(path):
-        return ""
-
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
 
 
 def build_system_prompt(agent_dir: str) -> str:
