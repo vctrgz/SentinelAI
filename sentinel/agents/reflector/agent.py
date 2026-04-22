@@ -1,3 +1,5 @@
+from typing import Optional
+
 from app.config import Config
 from utils.ollama_client import OllamaClient
 from utils.json_parser import safe_json_parse
@@ -11,7 +13,7 @@ class ReflectorAgent:
         self.llm = OllamaClient(OLLAMA_MODEL)
         self.system_prompt = build_system_prompt("agents/reflector")
 
-    def run(self, execution_results: list, task: dict) -> dict:
+    def run(self, execution_results: list, task: Optional[dict] = None,) -> dict:
 
         user_prompt = f"""
 Execution Results:

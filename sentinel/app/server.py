@@ -43,12 +43,12 @@ async def _startup():
     warnings = Config.validate()
     for w in warnings:
         logger.warning(f"[Config] {w}")
-    client = OllamaClient()
+    client = OllamaClient(Config.DEFAULT_MODEL)
     if client.is_available():
         logger.info(f"[Server] Ollama conectado. Modelos: {client.list_models()}")
     else:
         logger.warning(
-            f"[Server] Ollama no disponible en {Config.ollama_base_url()}. "
+            f"[Server] Ollama no disponible en {Config.OLLAMA_BASE_URL}. "
             "Configura OLLAMA_HOST en .env"
         )
 
@@ -64,12 +64,12 @@ async def serve_chatbot():
 
 @app.get("/health")
 async def health():
-    client = OllamaClient()
+    client = OllamaClient(Config.DEFAULT_MODEL)
     ok = client.is_available()
     return JSONResponse({
         "status":     "ok" if ok else "degraded",
         "ollama":     "connected" if ok else "unreachable",
-        "ollama_url": Config.ollama_base_url(),
+        "ollama_url": Config.OLLAMA_BASE_URL,
         "models":     client.list_models() if ok else [],
     })
 

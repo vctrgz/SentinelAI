@@ -4,11 +4,6 @@ from typing import List, Optional
 from utils.logger import logger
 
 
-# ------------------------------------------------------------------ #
-# Patrones de inyección de prompt                                      #
-# ------------------------------------------------------------------ #
-
-# Intentos de manipulación del system prompt
 PROMPT_INJECTION_PATTERNS = [
     r"ignore\s+(previous|all|above)\s+instructions?",
     r"disregard\s+(your|the)\s+(previous|system|above)",
@@ -20,15 +15,14 @@ PROMPT_INJECTION_PATTERNS = [
     r"DAN\s*(mode)?",
     r"developer\s+mode",
     r"override\s+(your|all)\s+(instructions?|rules?)",
-    r"<\s*system\s*>",          # inyección de tags XML
-    r"\[INST\]",                 # formato Llama instruction injection
-    r"###\s*System",             # formato de alternancia de roles
+    r"<\s*system\s*>",
+    r"\[INST\]",
+    r"###\s*System",
 ]
 
-# Input que sugiere comandos extremadamente destructivos inyectados
 DANGEROUS_PAYLOAD_PATTERNS = [
     r"rm\s+-rf\s+/",
-    r":()\{.*\|.*&\}",           # fork bomb
+    r":()\{.*\|.*&\}",
     r"dd\s+if=/dev/zero",
     r"mkfs\.",
     r">\s*/dev/sd[a-z]",
@@ -36,38 +30,21 @@ DANGEROUS_PAYLOAD_PATTERNS = [
 ]
 
 
-# ------------------------------------------------------------------ #
-# Resultado de validación                                              #
-# ------------------------------------------------------------------ #
-
 @dataclass
 class ValidationResult:
-    valid:       bool
-    clean_input: str
-    warnings:    List[str] = field(default_factory=list)
-    blocked:     bool      = False
-    block_reason: Optional[str] = None
+    valid:        bool
+    clean_input:  str
+    warnings:     List[str]      = field(default_factory=list)
+    blocked:      bool           = False
+    block_reason: Optional[str]  = None
 
-
-# ------------------------------------------------------------------ #
-# InputValidator                                                       #
-# ------------------------------------------------------------------ #
 
 class InputValidator:
-    """
-    Alerta #4: el input del usuario se pasaba directamente al LLM y
-    a los comandos sin ninguna sanitización.
 
-    Este validador aplica tres capas de control:
-    1. Límites básicos (longitud, caracteres no imprimibles)
-    2. Detección de prompt injection
-    3. Detección de payloads de comandos peligrosos embebidos
-    """
-
-    MAX_INPUT_LENGTH = 4_000   # caracteres
+    MAX_INPUT_LENGTH = 4_000
     MIN_INPUT_LENGTH = 1
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._injection_re = [
             re.compile(p, re.IGNORECASE | re.DOTALL)
             for p in PROMPT_INJECTION_PATTERNS
@@ -77,22 +54,19 @@ class InputValidator:
             for p in DANGEROUS_PAYLOAD_PATTERNS
         ]
 
-    # ------------------------------------------------------------------ #
-    # API pública                                                          #
-    # ------------------------------------------------------------------ #
-
-    def validate(self, user_input: str) -> ValidationResult:
+    def validate(self, user_input: Optional[str]) -> ValidationResult:  # ← Fix: Optional[str]
         """
-        Valida y sanitiza el input del usuario.
-        Devuelve ValidationResult con el input limpio y posibles warnings.
+        Valida y sanitiza el input. Acepta None explícitamente
+        para que los tests y el código de llamada sean type-safe.
         """
+        # Capa 0: tipo incorrecto (None, int, etc.)
         if not isinstance(user_input, str):
             return ValidationResult(
                 valid=False, clean_input="",
                 blocked=True, block_reason="El input debe ser texto"
             )
 
-        # 1. Límites de longitud
+        # Capa 1: longitud
         if len(user_input) < self.MIN_INPUT_LENGTH:
             return ValidationResult(
                 valid=False, clean_input="",
@@ -101,70 +75,54 @@ class InputValidator:
 
         if len(user_input) > self.MAX_INPUT_LENGTH:
             return ValidationResult(
-                valid=False, clean_input=user_input[:self.MAX_INPUT_LENGTH],
-                warnings=[
-                    f"Input truncado a {self.MAX_INPUT_LENGTH} caracteres "
-                    f"(recibido: {len(user_input)})"
-                ]
+                valid=True,
+                clean_input=user_input[:self.MAX_INPUT_LENGTH],
+                warnings=[f"Input truncado a {self.MAX_INPUT_LENGTH} caracteres"],
             )
 
-        # 2. Sanitización básica
-        clean = self._sanitize(user_input)
-        warnings = []
+        # Capa 2: sanitización
+        clean    = self._sanitize(user_input)
+        warnings: List[str] = []
 
-        # 3. Detección de prompt injection
+        # Capa 3: prompt injection
         injection = self._detect_injection(clean)
         if injection:
-            logger.warning(f"[InputValidator] Prompt injection detectado: {injection}")
+            logger.warning(f"[InputValidator] Prompt injection: {injection}")
             return ValidationResult(
                 valid=False, clean_input="",
                 blocked=True,
                 block_reason=f"Input bloqueado: posible prompt injection ({injection})"
             )
 
-        # 4. Detección de payloads peligrosos
+        # Capa 4: payloads peligrosos
         dangerous = self._detect_dangerous(clean)
         if dangerous:
-            logger.warning(f"[InputValidator] Payload peligroso detectado: {dangerous}")
+            logger.warning(f"[InputValidator] Payload peligroso: {dangerous}")
             return ValidationResult(
                 valid=False, clean_input="",
                 blocked=True,
-                block_reason=f"Input bloqueado: payload de comando peligroso detectado"
+                block_reason="Input bloqueado: payload de comando peligroso detectado"
             )
 
-        # 5. Advertencias no bloqueantes
         if len(clean) > 1000:
-            warnings.append(
-                "Input largo — considera dividirlo en consultas más específicas "
-                "para obtener mejores resultados"
-            )
+            warnings.append("Input largo — considera dividirlo en consultas más específicas")
 
         return ValidationResult(valid=True, clean_input=clean, warnings=warnings)
 
-    # ------------------------------------------------------------------ #
-    # Helpers privados                                                     #
-    # ------------------------------------------------------------------ #
-
     def _sanitize(self, text: str) -> str:
-        """Elimina caracteres problemáticos preservando el contenido legítimo."""
-        # Eliminar caracteres de control (excepto \n, \t que son legítimos)
         cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
-        # Normalizar espacios múltiples
-        cleaned = re.sub(r'  +', ' ', cleaned)
-        return cleaned.strip()
+        return re.sub(r'  +', ' ', cleaned).strip()
 
     def _detect_injection(self, text: str) -> Optional[str]:
-        """Devuelve el patrón de injection encontrado, o None si no hay."""
         for pattern in self._injection_re:
-            match = pattern.search(text)
-            if match:
-                return match.group(0)[:50]
+            m = pattern.search(text)
+            if m:
+                return m.group(0)[:50]
         return None
 
     def _detect_dangerous(self, text: str) -> Optional[str]:
-        """Devuelve el payload peligroso encontrado, o None si no hay."""
         for pattern in self._dangerous_re:
-            match = pattern.search(text)
-            if match:
-                return match.group(0)[:50]
+            m = pattern.search(text)
+            if m:
+                return m.group(0)[:50]
         return None

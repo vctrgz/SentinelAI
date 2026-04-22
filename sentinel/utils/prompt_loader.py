@@ -1,5 +1,5 @@
 import os
-from sentinel.utils.file_utils import load_file
+from utils.file_utils import load_file
 from utils.agent_parser import extract_skills
 from utils.skill_loader import load_skills
 

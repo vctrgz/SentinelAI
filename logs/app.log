@@ -1,0 +1,72 @@
+2026-04-22 15:50:48 | WARNING  | SentinelAI | [InputValidator] Prompt injection: ignore previous instructions
+2026-04-22 15:50:48 | WARNING  | SentinelAI | [InputValidator] Payload peligroso: rm -rf /
+2026-04-22 15:50:48 | WARNING  | SentinelAI | [InputValidator] Prompt injection: jailbreak
+2026-04-22 15:50:48 | INFO     | SentinelAI | [ContextManager] User prompt truncado: 8500 → 2305 chars
+2026-04-22 15:50:49 | WARNING  | SentinelAI | [RetryHandler] 'operación' falló (transient): simulated connection error. Reintento 1/2 en 2.2s...
+2026-04-22 15:50:51 | WARNING  | SentinelAI | [RetryHandler] 'operación' falló (transient): simulated connection error. Reintento 2/2 en 4.9s...
+2026-04-22 15:50:56 | INFO     | SentinelAI | [RetryHandler] 'operación' exitoso en intento 3
+2026-04-22 15:50:56 | WARNING  | SentinelAI | [RetryHandler] 'operación' falló (transient): fatal. Reintento 1/3 en 2.3s...
+2026-04-22 15:50:58 | WARNING  | SentinelAI | [RetryHandler] 'operación' falló (transient): fatal. Reintento 2/3 en 4.6s...
+2026-04-22 15:51:02 | WARNING  | SentinelAI | [RetryHandler] 'operación' falló (transient): fatal. Reintento 3/3 en 8.6s...
+2026-04-22 15:51:11 | ERROR    | SentinelAI | [RetryHandler] 'operación' agotó 3 reintentos. Último error: fatal
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: bash
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: read_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: write_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: str_replace
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: search_code
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: list_directory
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: bash
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: read_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: write_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: str_replace
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: search_code
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: list_directory
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: bash
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: read_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: write_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: str_replace
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: search_code
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: list_directory
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: bash
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: read_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: write_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: str_replace
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: search_code
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: list_directory
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: bash
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: read_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: write_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: str_replace
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: search_code
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: list_directory
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: bash
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: read_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: write_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: str_replace
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: search_code
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: list_directory
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: bash
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: read_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: write_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: str_replace
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: search_code
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: list_directory
+2026-04-22 15:51:11 | ERROR    | SentinelAI | [ToolRegistry] Error en str_replace: El texto a reemplazar no se encontró en C:\Users\34644\AppData\Local\Temp\pytest-of-34644\pytest-0\test_str_replace_not_found0\code.py
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: bash
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: read_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: write_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: str_replace
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: search_code
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: list_directory
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: bash
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: read_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: write_file
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: str_replace
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: search_code
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ToolRegistry] Registrada: list_directory
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ShellExecutor] Ejecutando: ['echo', 'hello']
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ShellExecutor] Ejecutando: ['comando_que_no_existe_xyzabc']
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ShellExecutor] Ejecutando: ['echo', 'safe;', 'echo', 'INJECTED']
+2026-04-22 15:51:11 | DEBUG    | SentinelAI | [ShellExecutor] Ejecutando: ['echo', 'hello']
+2026-04-22 15:51:21 | DEBUG    | SentinelAI | [ShellExecutor] Ejecutando: ['echo', 'hello']
+2026-04-22 15:52:26 | DEBUG    | SentinelAI | [ShellExecutor] Ejecutando: ['whoami']

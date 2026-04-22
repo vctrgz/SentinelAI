@@ -21,8 +21,8 @@ def _startup_checks() -> bool:
         print(f"  ⚠️  {w}")
 
     # Verificar Ollama
-    client = OllamaClient()
-    print(f"  🔗 Conectando con Ollama en {Config.ollama_base_url()}...")
+    client = OllamaClient(Config.DEFAULT_MODEL)
+    print(f"  🔗 Conectando con Ollama en {Config.OLLAMA_BASE_URL}...")
 
     if not client.is_available():
         print(

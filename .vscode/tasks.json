@@ -1,31 +1,32 @@
 {
     "version": "2.0.0",
     "tasks": [
-        // ── Setup: crear venv + instalar dependencias ──────────────────
-        // Se ejecuta automáticamente al pulsar F5 (preLaunchTask)
         {
             "label": "SentinelAI: Setup Entorno",
-            "type": "shell",
-            "command": "python ${workspaceFolder}/sentinel/setup_env.py",
-            "windows": {
-                "command": "python \"${workspaceFolder}/sentinel/setup_env.py\""
-            },
+            "type": "process",
+
+            // Usa el Python del SISTEMA (no del venv) porque el venv
+            // puede no existir todavía cuando se ejecuta esta tarea.
+            // VSCode resolverá el Python correcto según el intérprete configurado.
+            "command": "python",
+            "args": [
+                "${workspaceFolder}/sentinel/setup_env.py"
+            ],
+
             "options": {
                 "cwd": "${workspaceFolder}"
             },
+
             "presentation": {
                 "echo": true,
                 "reveal": "always",
+                "focus": false,
                 "panel": "shared",
                 "showReuseMessage": false,
                 "clear": true
             },
-            "problemMatcher": [],
-            "runOptions": {
-                // No re-ejecutar si ya corrió en los últimos 30s
-                // Evita reinstalar en cada F5 cuando el venv ya existe
-                "reevaluateOnRerun": true
-            }
+
+            "problemMatcher": []
         }
     ]
 }

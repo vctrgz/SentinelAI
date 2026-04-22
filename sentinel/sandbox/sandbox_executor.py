@@ -1,6 +1,7 @@
 import shlex
 import shutil
 import subprocess
+from typing import Optional
 from agents.executors.base_executor import BaseExecutor
 from app.config import Config
 from utils.logger import logger
@@ -26,7 +27,7 @@ class SandboxExecutor(BaseExecutor):
     # Imagen Docker base para comandos generales
     DEFAULT_IMAGE = "python:3.11-slim"
 
-    def __init__(self, image: str = None, workspace: str = None):
+    def __init__(self, image: Optional[str] = None, workspace: Optional[str] = None):
         self.image       = image or self.DEFAULT_IMAGE
         self.workspace   = workspace or Config.SANDBOX_PATH
         self._docker_ok  = self._check_docker()
