@@ -1,51 +1,42 @@
 {
     "version": "0.2.0",
     "configurations": [
-
         {
-            "name": "▶ SentinelAI: Servidor Web",
+            "name": "SentinelAI: Servidor Web",
             "type": "debugpy",
             "request": "launch",
-            "module": "uvicorn",
-
-            // Windows: venv\Scripts\python.exe
-            // Linux/Mac: cambia a "${workspaceFolder}/venv/bin/python"
-            "python": "${workspaceFolder}/venv/Scripts/python.exe",
-
-            "args": [
-                "app.server:app",
-                "--reload",
-                "--host", "0.0.0.0",
-                "--port", "8000"
-            ],
-
-            // cwd = SentinelAI/sentinel/ para que los imports funcionen
-            "cwd": "${workspaceFolder}/sentinel",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/sentinel"
+            "program": "${workspaceFolder}/sentinel/run.py",
+            "python": "${workspaceFolder}/venv/bin/python",
+            "windows": {
+                "python": "${workspaceFolder}\\venv\\Scripts\\python.exe"
             },
-
+            "cwd": "${workspaceFolder}/sentinel",
+            "envFile": "${workspaceFolder}/sentinel/.env",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/sentinel",
+                "UVICORN_RELOAD": "false"
+            },
             "jinja": true,
             "justMyCode": false,
-
-            // Ejecuta setup_env.py antes de arrancar uvicorn
+            "console": "integratedTerminal",
             "preLaunchTask": "SentinelAI: Setup Entorno",
-
-            // Abre el navegador automáticamente cuando uvicorn está listo
             "serverReadyAction": {
                 "pattern": "Application startup complete",
                 "uriFormat": "http://localhost:8000",
                 "action": "openExternally"
             }
         },
-
         {
-            "name": "⌨ SentinelAI: CLI",
+            "name": "SentinelAI: CLI",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/sentinel/app/main.py",
-            "python": "${workspaceFolder}/venv/Scripts/python.exe",
+            "python": "${workspaceFolder}/venv/bin/python",
+            "windows": {
+                "python": "${workspaceFolder}\\venv\\Scripts\\python.exe"
+            },
             "cwd": "${workspaceFolder}/sentinel",
+            "envFile": "${workspaceFolder}/sentinel/.env",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/sentinel"
             },
@@ -53,15 +44,23 @@
             "justMyCode": false,
             "preLaunchTask": "SentinelAI: Setup Entorno"
         },
-
         {
-            "name": "🧪 SentinelAI: Tests",
+            "name": "SentinelAI: Tests",
             "type": "debugpy",
             "request": "launch",
             "module": "pytest",
-            "python": "${workspaceFolder}/venv/Scripts/python.exe",
-            "args": ["tests/", "-v", "--tb=short", "--no-header"],
+            "python": "${workspaceFolder}/venv/bin/python",
+            "windows": {
+                "python": "${workspaceFolder}\\venv\\Scripts\\python.exe"
+            },
+            "args": [
+                "tests/",
+                "-v",
+                "--tb=short",
+                "--no-header"
+            ],
             "cwd": "${workspaceFolder}/sentinel",
+            "envFile": "${workspaceFolder}/sentinel/.env",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/sentinel"
             },
@@ -69,6 +68,5 @@
             "justMyCode": false,
             "preLaunchTask": "SentinelAI: Setup Entorno"
         }
-
     ]
 }

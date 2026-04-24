@@ -139,3 +139,7 @@ Exception: Ollama no disponible tras 3 reintentos: No se puede conectar con Olla
 2026-04-22 16:59:02 | INFO     | SentinelAI | [ReAct] Reflexionando...
 2026-04-22 17:03:05 | INFO     | SentinelAI | [ReAct] Estado: fatal | Missing essential commands and sudo is disabled
 2026-04-22 17:03:05 | ERROR    | SentinelAI | [ReAct] ❌ Fallo fatal: Missing essential commands and sudo is disabled
+2026-04-22 19:36:52 | WARNING  | SentinelAI | [Server] Ollama no disponible en http://192.168.1.49:11434/api/chat. Configura OLLAMA_HOST en .env
+2026-04-22 19:38:41 | WARNING  | SentinelAI | [Server] Ollama no disponible en http://192.168.1.49:11434/api/chat. Configura OLLAMA_HOST en .env
+2026-04-22 19:39:31 | WARNING  | SentinelAI | [Server] Ollama no disponible en http://192.168.1.49:11434/api/chat. Configura OLLAMA_HOST en .env
+2026-04-22 19:40:03 | WARNING  | SentinelAI | [Server] Ollama no disponible en http://192.168.1.49:11434/api/chat. Configura OLLAMA_HOST en .env

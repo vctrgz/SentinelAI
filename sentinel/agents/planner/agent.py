@@ -1,3 +1,4 @@
+import json
 from app.config import Config
 from utils.ollama_client import OllamaClient
 from utils.json_parser import safe_json_parse
@@ -12,15 +13,16 @@ class PlannerAgent:
         self.system_prompt = build_system_prompt("agents/planner")
 
     def run(self, task: dict) -> dict:
+        task_context = self.llm.context_manager.prepare_task_context(task)
 
         user_prompt = f"""
 Objective:
 {task['objective']}
 
 Context:
-{task['context']}
+{json.dumps(task_context, ensure_ascii=False)}
 """
 
-        response = self.llm.chat(self.system_prompt, user_prompt)
+        response = self.llm.chat(self.system_prompt, user_prompt, expect_json=True)
 
         return safe_json_parse(response)

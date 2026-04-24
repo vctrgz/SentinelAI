@@ -25,7 +25,8 @@ class Config:
         "balanceado": "qwen2.5:latest",
     }
 
-    WINDOWS_IP = "192.168.1.49"
+    # WINDOWS_IP = "192.168.1.49"
+    WINDOWS_IP = "10.30.212.36"
 
     OLLAMA_HOST = _normalize_ollama_host(
         os.getenv("OLLAMA_HOST", WINDOWS_IP),

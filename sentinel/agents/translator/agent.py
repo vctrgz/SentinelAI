@@ -1,3 +1,4 @@
+import json
 from app.config import Config
 from utils.command_validator import CommandValidator
 from utils.ollama_client import OllamaClient
@@ -29,16 +30,17 @@ class TranslatorAgent:
         return validated
     
     def run(self, plan: dict, context: dict) -> dict:
+        compact_context = self.llm.context_manager._truncate_context(context)
 
         user_prompt = f"""
-            Tasks:
-            {plan['tasks']}
+Tasks:
+{json.dumps(plan.get('tasks', []), ensure_ascii=False)}
 
-            Context:
-            {context}
-            """
+Context:
+{json.dumps(compact_context, ensure_ascii=False)}
+"""
 
-        response = self.llm.chat(self.system_prompt, user_prompt)
+        response = self.llm.chat(self.system_prompt, user_prompt, expect_json=True)
 
         return safe_json_parse(response)
     

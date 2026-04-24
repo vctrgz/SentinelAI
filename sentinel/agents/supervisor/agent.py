@@ -1,3 +1,4 @@
+import json
 from app.config import Config
 from utils.ollama_client import OllamaClient
 from utils.json_parser import safe_json_parse
@@ -12,12 +13,11 @@ class SupervisorAgent:
         self.system_prompt = build_system_prompt("agents/supervisor")  # ← Fix: 1 arg, no 2
 
     def run(self, commands: dict, objective: str = "") -> dict:
-        # El objetivo se inyecta en el user_prompt, no en el system_prompt
         user_prompt = f"""
 Objective: {objective}
 
 Commands:
-{commands}
+{json.dumps(commands, ensure_ascii=False)}
 """
-        response = self.llm.chat(self.system_prompt, user_prompt)
+        response = self.llm.chat(self.system_prompt, user_prompt, expect_json=True)
         return safe_json_parse(response)

@@ -1,7 +1,7 @@
+import json
 from utils.ollama_client import OllamaClient
 from utils.json_parser import safe_json_parse
 from utils.prompt_loader import build_system_prompt
-import os
 from app.config import Config
 
 
@@ -16,12 +16,12 @@ class OrchestratorAgent:
 
         user_prompt = f"""
 User input:
-{user_input}
+{json.dumps({"input": user_input}, ensure_ascii=False)}
 
 Return structured JSON.
 """
 
-        response = self.llm.chat(self.system_prompt, user_prompt)
+        response = self.llm.chat(self.system_prompt, user_prompt, expect_json=True)
 
         return safe_json_parse(response)
 
@@ -30,7 +30,7 @@ Return structured JSON.
         user_prompt = f"""
 Explain these commands to a human:
 
-{commands}
+{json.dumps(commands, ensure_ascii=False)}
 """
 
         return self.llm.chat(self.system_prompt, user_prompt)

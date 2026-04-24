@@ -40,6 +40,22 @@ class TestSafeJsonParse:
         result = safe_json_parse('```\n{"cmd": "ls -la"}\n```')
         assert result["cmd"] == "ls -la"
 
+    def test_parse_json_with_explanatory_text_and_markdown(self):
+        from utils.json_parser import safe_json_parse
+        text = """Given the commands provided, there is no high-risk operation detected.
+
+```json
+{"approved": [{"cmd": "grep test", "risk": "low"}]}
+```"""
+        result = safe_json_parse(text)
+        assert result["approved"][0]["cmd"] == "grep test"
+
+    def test_parse_json_with_invalid_backslashes_in_string(self):
+        from utils.json_parser import safe_json_parse
+        text = r'{"commands":[{"cmd":"nmcli connection show | grep -q \'state=\(activated\|connected\)\'","risk":"low"}]}'
+        result = safe_json_parse(text)
+        assert "nmcli" in result["commands"][0]["cmd"]
+
     def test_raises_on_invalid(self):
         from utils.json_parser import safe_json_parse
         with pytest.raises(ValueError):

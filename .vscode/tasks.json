@@ -4,19 +4,19 @@
         {
             "label": "SentinelAI: Setup Entorno",
             "type": "process",
-
-            // Usa el Python del SISTEMA (no del venv) porque el venv
-            // puede no existir todavía cuando se ejecuta esta tarea.
-            // VSCode resolverá el Python correcto según el intérprete configurado.
             "command": "python",
+            "linux": {
+                "command": "python3"
+            },
+            "osx": {
+                "command": "python3"
+            },
             "args": [
                 "${workspaceFolder}/sentinel/setup_env.py"
             ],
-
             "options": {
                 "cwd": "${workspaceFolder}"
             },
-
             "presentation": {
                 "echo": true,
                 "reveal": "always",
@@ -25,7 +25,6 @@
                 "showReuseMessage": false,
                 "clear": true
             },
-
             "problemMatcher": []
         }
     ]
