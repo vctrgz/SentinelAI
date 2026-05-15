@@ -57,6 +57,6 @@ Same as command_generation
 ### Output
 {
   "commands": [
-    {"cmd": "apt install nginx -y", "risk": "high"}
+    {"cmd": "<native package manager> install nginx", "risk": "high"}
   ]
 }

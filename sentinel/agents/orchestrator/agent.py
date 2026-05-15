@@ -1,6 +1,7 @@
 import json
 from utils.ollama_client import OllamaClient
 from utils.json_parser import safe_json_parse
+from utils.prompt_context import build_runtime_context_block
 from utils.prompt_loader import build_system_prompt
 from app.config import Config
 
@@ -15,6 +16,10 @@ class OrchestratorAgent:
     def interpret(self, user_input: str) -> dict:
 
         user_prompt = f"""
+{build_runtime_context_block([
+    "Resolve whether the request depends on current or time-sensitive information before interpreting intent."
+])}
+
 User input:
 {json.dumps({"input": user_input}, ensure_ascii=False)}
 
@@ -28,6 +33,8 @@ Return structured JSON.
     def format_confirmation(self, commands: list) -> str:
 
         user_prompt = f"""
+{build_runtime_context_block()}
+
 Explain these commands to a human:
 
 {json.dumps(commands, ensure_ascii=False)}

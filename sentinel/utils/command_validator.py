@@ -253,13 +253,14 @@ class CommandValidator:
 
         # Comandos de solo lectura → bajo riesgo
         safe_read = {"ls", "cat", "head", "tail", "grep", "find", "wc", "echo",
-                     "pwd", "whoami", "date", "which", "file", "stat", "env"}
+                     "pwd", "whoami", "date", "which", "file", "stat", "env",
+                     "dir", "ipconfig", "arp", "route", "netstat"}
         if base in safe_read:
             return "low"
 
         # Comandos de red o instalación → medio
         medium = {"curl", "wget", "apt", "apt-get", "pip", "pip3", "npm",
-                  "git", "docker", "systemctl"}
+                  "git", "docker", "systemctl", "winget", "choco", "brew", "nmap"}
         if base in medium:
             return "high" if has_sudo else "medium"
 

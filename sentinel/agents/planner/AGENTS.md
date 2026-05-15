@@ -44,6 +44,7 @@ Use when:
 ### multi_phase_recon
 Use when:
 - any mention of: network, devices, hosts, scan, recon, ports, services, IPs
+- any mention of: subnet, LAN, gateway, router, topology, MACs, hostname, fingerprinting, inventory
 - user wants to "see devices", "discover hosts", "gather network info"
 - MANDATORY for any network reconnaissance objective
 

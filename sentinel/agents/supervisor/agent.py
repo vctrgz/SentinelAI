@@ -2,6 +2,7 @@ import json
 from app.config import Config
 from utils.ollama_client import OllamaClient
 from utils.json_parser import safe_json_parse
+from utils.prompt_context import build_runtime_context_block
 from utils.prompt_loader import build_system_prompt
 
 
@@ -14,6 +15,8 @@ class SupervisorAgent:
 
     def run(self, commands: dict, objective: str = "") -> dict:
         user_prompt = f"""
+{build_runtime_context_block()}
+
 Objective: {objective}
 
 Commands:

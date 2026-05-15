@@ -15,7 +15,7 @@ SYSTEM_COMMANDS   = {"systemctl", "service", "mount", "umount", "fdisk", "mkfs",
 SAFE_READ_COMMANDS = {
     "ls", "cat", "head", "tail", "grep", "find", "wc", "echo",
     "pwd", "whoami", "date", "which", "file", "ip", "ifconfig",
-    "arp", "ss", "netstat", "route"
+    "arp", "ss", "netstat", "route", "ipconfig"
 }
 
 # Network recon tools — run via shell (they need real network access)
@@ -23,7 +23,7 @@ SAFE_READ_COMMANDS = {
 NETWORK_RECON_COMMANDS = {
     "nmap", "masscan", "arp-scan", "netdiscover", "fping",
     "nc", "netcat", "curl", "wget", "ping", "traceroute",
-    "dig", "nslookup", "host", "whois"
+    "dig", "nslookup", "host", "whois", "tracert"
 }
 
 # Network admin commands (need system access, not just recon)

@@ -193,8 +193,12 @@ class NetworkParser:
     def _parse_arp_a(self, text: str) -> List[NetworkHost]:
         hosts: List[NetworkHost] = []
         for line in text.splitlines():
-            # "? (192.168.1.1) at 2c:96:82:45:81:50 [ether] on enp0s3"
-            ip_match  = re.search(r"\((\d+\.\d+\.\d+\.\d+)\)", line)
+            # Unix/macOS: "? (192.168.1.1) at 2c:96:82:45:81:50 [ether] on enp0s3"
+            # Windows:    "192.168.1.1           2c-96-82-45-81-50     dynamic"
+            ip_match  = re.search(r"\((\d+\.\d+\.\d+\.\d+)\)", line) or re.match(
+                r"\s*(\d+\.\d+\.\d+\.\d+)\s+([0-9A-Fa-f-]{17}|[0-9A-Fa-f:]{17})\s+",
+                line,
+            )
             mac_match = MAC_RE.search(line)
             if not ip_match:
                 continue

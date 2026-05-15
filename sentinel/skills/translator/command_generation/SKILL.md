@@ -7,7 +7,7 @@ Convert structured tasks into precise and executable shell commands.
 
 ## Capabilities
 - Translate task descriptions into valid shell commands
-- Use standard Linux tools and conventions
+- Use the native tools and conventions of the detected OS
 - Generate minimal and efficient commands
 
 ---
@@ -22,6 +22,7 @@ Convert structured tasks into precise and executable shell commands.
 
 ## Rules
 - Commands MUST be executable
+- Commands MUST match the detected OS family: Windows, Linux, macOS, FreeBSD, or Android
 - DO NOT include explanations
 - DO NOT chain commands unless necessary
 - DO NOT assume unavailable tools

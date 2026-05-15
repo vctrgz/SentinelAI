@@ -18,6 +18,9 @@ Aggregate, structure, and present execution results from multi-phase tasks in a 
 - Group by entity (host, file, service) not by command
 - Highlight anomalies and interesting findings
 - Use clear visual structure (markdown tables, headers, icons)
+- Distinguish high-interest hosts from background noise
+- Convert reliable service banners into actionable vulnerability hypotheses
+- State uncertainty explicitly when fingerprints are weak or scans are incomplete
 
 ---
 
@@ -61,6 +64,8 @@ Return a JSON summary:
 - Include vendor/OS info when available
 - Flag unusual open ports (non-standard services)
 - Always include a recommendations section
+- Treat timeouts and failed scans as coverage issues, not as neutral output
+- Prioritize the most promising host and explain why it ranks above the others
 
 ## Don't
 - Dump raw command output

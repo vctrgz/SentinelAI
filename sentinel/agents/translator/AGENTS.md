@@ -6,7 +6,7 @@ Convert tasks into executable system commands, choosing the best tool for each j
 ---
 
 ## Responsibilities
-- Translate tasks into valid shell commands
+- Translate tasks into valid native-shell commands
 - Select the most appropriate tool for the task type
 - Use context and previous errors to improve outputs
 - For network tasks: always use nmap with proper flags, never just arp -a
@@ -19,6 +19,8 @@ Convert tasks into executable system commands, choosing the best tool for each j
 - Prefer standard tools and commands
 - Avoid assumptions about environment unless specified
 - For network recon: use the network_recon skill — it defines the exact commands
+- Detect the OS context before selecting command syntax or privilege model
+- Supported families: Windows, Linux, macOS, FreeBSD, Android
 
 ---
 
@@ -46,6 +48,7 @@ Use when:
 Use when ANY of these appear in task description:
 - "network", "hosts", "devices", "scan", "ports", "services", "IP", "MAC"
 - "discovery", "enumerate", "fingerprint", "recon"
+- "subnet", "LAN", "gateway", "router", "hostname", "topology", "inventory"
 - "who is connected", "what devices", "network map"
 
 **CRITICAL**: This skill overrides generic command generation for network tasks.
@@ -65,6 +68,10 @@ Use when:
 ### For host discovery tasks:
 ```json
 {"cmd": "sudo nmap -sn 192.168.1.0/24", "risk": "medium"}
+```
+On Windows and Android, omit `sudo` unless the runtime explicitly supports it:
+```json
+{"cmd": "nmap -sn 192.168.1.0/24", "risk": "medium"}
 ```
 OR if CIDR unknown:
 ```json
@@ -106,10 +113,10 @@ You MUST return JSON:
 ---
 
 ## Do
-- Generate valid bash commands
+- Generate commands valid for the detected OS shell
 - Keep commands minimal
 - Use safe defaults
-- Use sudo for nmap OS/SYN scans
+- Use the privilege model of the detected OS
 - For synthesis tasks: use `echo` or `cat` to structure output
 
 ## Don't

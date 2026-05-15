@@ -60,6 +60,6 @@ Error: command not found
 ### Output
 {
   "commands": [
-    {"cmd": "apt install tool -y", "risk": "medium"}
+    {"cmd": "<native package manager> install tool", "risk": "medium"}
   ]
 }

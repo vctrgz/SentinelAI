@@ -57,7 +57,7 @@ Plain text
 ## Examples
 
 ### Input
-["sudo apt install nginx"]
+["<native package manager> install nginx"]
 
 ### Output
 "Se va a instalar nginx en el sistema. ¿Deseas continuar? (y/n)"

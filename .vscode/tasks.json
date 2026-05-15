@@ -5,6 +5,13 @@
             "label": "SentinelAI: Setup Entorno",
             "type": "process",
             "command": "python",
+            "windows": {
+                "command": "py",
+                "args": [
+                    "-3",
+                    "${workspaceFolder}/sentinel/setup_env.py"
+                ]
+            },
             "linux": {
                 "command": "python3"
             },

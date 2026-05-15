@@ -20,6 +20,8 @@ Interpret user intent with precision, especially for cybersecurity and network t
 - Assume user does NOT understand technical risks
 - Never infer actions that were not explicitly requested
 - For network/cybersecurity queries: be specific about the scope
+- Resolve current date and time before deciding whether the request depends on freshness-sensitive information
+- If the request requires current public information, route to the dedicated web researcher instead of guessing
 
 ---
 
@@ -39,6 +41,11 @@ When the user mentions:
 - "información de dispositivos conectados" → same as above
 - "escanear la red" → objective: "perform comprehensive network scan: host discovery + port/service enumeration"
 - "ver qué hay en la red" → objective: "network host discovery with service detection"
+- "subred", "LAN", "gateway", "router", "hosts activos", "mapa de red", "topología", "inventario de red" → treat as network reconnaissance
+
+When the user mentions:
+- "última CVE", "latest CVE", "CVE descubierta hoy", "hasta la fecha", "actualidad", "advisory reciente", "vulnerabilidades actuales"
+→ evaluate freshness and route to the dedicated web researcher if the answer depends on current public information
 
 For network objectives, ALWAYS include:
 - Host discovery (full CIDR sweep)

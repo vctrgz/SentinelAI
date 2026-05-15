@@ -66,14 +66,14 @@ Determine which commands require explicit user confirmation before execution.
 ## Examples
 
 ### Input
-"apt install nginx"
+"<native package manager> install nginx"
 
 ### Output
 {
   "approved": [],
   "needs_confirmation": [
     {
-      "cmd": "apt install nginx -y",
+      "cmd": "<native package manager> install nginx",
       "reason": "Installs software on the system"
     }
   ]

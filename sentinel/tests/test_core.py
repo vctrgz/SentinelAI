@@ -347,6 +347,278 @@ class TestToolRegistry:
 
 
 # ============================================================
+# utils/time_context.py + utils/freshness.py
+# ============================================================
+
+class TestRuntimeContext:
+
+    def test_time_context_contains_expected_fields(self):
+        from utils.time_context import get_current_time_context
+        ctx = get_current_time_context()
+        for key in ["iso", "date", "time", "timezone", "utc_offset", "human"]:
+            assert key in ctx
+            assert ctx[key]
+
+    def test_freshness_detects_current_cve_request(self):
+        from utils.freshness import assess_current_info_need
+        result = assess_current_info_need("dame la lista de todos los CVEs conocidos hasta la fecha")
+        assert result["requires_current_time"] is True
+        assert result["requires_web_research"] is True
+
+    def test_freshness_detects_ultima_cve_request(self):
+        from utils.freshness import assess_current_info_need
+        result = assess_current_info_need("cual es la ultima CVE descubierta")
+        assert result["requires_current_time"] is True
+        assert result["requires_web_research"] is True
+
+
+class TestWebSearchHelpers:
+
+    def test_latest_cve_query_regex_triggers(self):
+        from utils.web_search import _LATEST_CVE_QUERY_RE
+        assert _LATEST_CVE_QUERY_RE.search("cual es la ultima CVE descubierta")
+        assert _LATEST_CVE_QUERY_RE.search("what is the latest cve")
+
+
+class TestResearchRouter:
+
+    def test_exact_cve_routes_to_replace(self):
+        from utils.research_router import classify_research_intent
+        result = classify_research_intent("dame informacion de CVE-2026-31431")
+        assert result["kind"] == "exact_cve"
+        assert result["route_mode"] == "replace"
+
+    def test_private_ip_vulnerability_routes_to_augment(self):
+        from utils.research_router import classify_research_intent
+        result = classify_research_intent("dame toda la informacion de las vulnerabilidades del dispositivo 192.168.1.10")
+        assert result["kind"] == "asset_vulnerability_enrichment"
+        assert result["route_mode"] == "augment"
+
+    def test_general_web_routes_to_replace(self):
+        from utils.research_router import classify_research_intent
+        result = classify_research_intent("busca noticias recientes sobre OpenSSL")
+        assert result["requires_research"] is True
+        assert result["route_mode"] == "replace"
+
+    def test_freshness_ignores_timeless_request(self):
+        from utils.freshness import assess_current_info_need
+        result = assess_current_info_need("explica que es un CVE")
+        assert result["requires_web_research"] is False
+
+    def test_os_context_detects_expected_fields(self):
+        from utils.os_context import detect_os_context
+        ctx = detect_os_context()
+        for key in ["family", "system", "platform", "python_executable", "shell", "shell_kind", "package_manager"]:
+            assert key in ctx
+            assert ctx[key] is not None
+
+    def test_parse_windows_cidr(self):
+        from utils.os_context import parse_windows_cidr
+        sample = """
+Ethernet adapter Ethernet:
+
+   IPv4 Address. . . . . . . . . . . : 192.168.1.42
+   Subnet Mask . . . . . . . . . . . : 255.255.255.0
+"""
+        assert parse_windows_cidr(sample) == "192.168.1.0/24"
+
+    def test_build_install_command_for_windows(self):
+        from utils.os_context import build_install_command
+        cmd = build_install_command("Git.Git", {"family": "windows", "is_windows": True, "package_manager": "winget"})
+        assert cmd[:3] == ["winget", "install", "--exact"]
+
+    def test_build_install_command_for_freebsd(self):
+        from utils.os_context import build_install_command
+        cmd = build_install_command("nmap", {"family": "freebsd", "is_windows": False, "package_manager": "pkg"})
+        assert cmd == ["pkg", "install", "-y", "nmap"]
+
+    def test_needs_native_shell_for_windows_builtin(self):
+        from utils.os_context import needs_native_shell
+        ctx = {"is_windows": True}
+        assert needs_native_shell("echo hello", ctx) is True
+
+
+class TestWebResearchRendering:
+
+    def test_exact_cve_render_uses_structured_nvd_payload(self):
+        from agents.web_researcher.agent import WebResearchAgent
+        agent = WebResearchAgent()
+        payload = {
+            "status": "ok",
+            "kind": "exact_cve",
+            "cve_id": "CVE-2026-31431",
+            "source": "nvd",
+            "primary_url": "https://nvd.nist.gov/vuln/detail/CVE-2026-31431",
+            "date_published": "2026-05-01T10:00:00.000",
+            "date_updated": "2026-05-02T10:00:00.000",
+            "state": "Analyzed",
+            "description": "Structured description from NVD.",
+            "metrics": {
+                "cvssMetricV31": [
+                    {
+                        "cvssData": {"baseScore": 8.8, "vectorString": "CVSS:3.1/AV:N/AC:L"},
+                        "baseSeverity": "HIGH",
+                    }
+                ]
+            },
+            "weaknesses": [{"description": [{"lang": "en", "value": "CWE-79"}]}],
+            "configurations": [{"nodes": [{"cpeMatch": [{"criteria": "cpe:2.3:a:vendor:product:1.0:*:*:*:*:*:*:*"}]}]}],
+            "references": [{"url": "https://cve.org/CVERecord?id=CVE-2026-31431"}],
+        }
+        rendered = agent._render_structured_response(payload, "lookup", {"human": "now"})
+        assert "Structured description from NVD." in rendered
+        assert "Primary source: nvd" in rendered
+        assert "Severity: CVSS 8.8 | HIGH" in rendered
+        assert "CWE-79" in rendered
+        assert "cpe:2.3:a:vendor:product:1.0" in rendered
+
+    def test_latest_cve_render_uses_nvd_records(self):
+        from agents.web_researcher.agent import WebResearchAgent
+        agent = WebResearchAgent()
+        payload = {
+            "status": "ok",
+            "kind": "latest_cve",
+            "latest_cve": "CVE-2026-99999",
+            "note": "note",
+            "ambiguity": "ambiguity",
+            "results": [
+                {
+                    "cve_id": "CVE-2026-99999",
+                    "published": "2026-05-13T10:00:00.000",
+                    "lastModified": "2026-05-13T11:00:00.000",
+                    "vulnStatus": "Received",
+                    "description": "Recent description",
+                    "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-99999",
+                }
+            ],
+        }
+        rendered = agent._render_structured_response(payload, "latest", {"human": "now"})
+        assert "Latest published CVE located" in rendered
+        assert "CVE-2026-99999" in rendered
+        assert "Recent description" in rendered
+
+    def test_exact_cve_render_uses_spanish_for_spanish_objective(self):
+        from agents.web_researcher.agent import WebResearchAgent
+        agent = WebResearchAgent()
+        payload = {
+            "status": "ok",
+            "kind": "exact_cve",
+            "cve_id": "CVE-2026-31431",
+            "source": "nvd",
+            "date_published": "2026-05-01T10:00:00.000",
+            "description": "Descripcion.",
+            "metrics": {},
+            "weaknesses": [],
+            "configurations": [],
+            "references": [],
+        }
+        rendered = agent._render_structured_response(payload, "dame informacion de esta vulnerabilidad", {"human": "ahora"})
+        assert "Informacion de `CVE-2026-31431`" in rendered
+        assert "- Publicado:" in rendered
+
+
+class TestLLMClientHelpers:
+
+    def test_extract_message_content_handles_none(self):
+        from utils.llm_client import _extract_message_content
+        assert _extract_message_content({"choices": [{"message": {"content": None}}]}) == ""
+
+    def test_extract_message_content_handles_openai_content_list(self):
+        from utils.llm_client import _extract_message_content
+        payload = {
+            "choices": [
+                {
+                    "message": {
+                        "content": [
+                            {"type": "text", "text": "first"},
+                            {"type": "text", "text": "second"},
+                        ]
+                    }
+                }
+            ]
+        }
+        assert _extract_message_content(payload) == "first\nsecond"
+
+    def test_config_validate_warns_when_no_providers(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "")
+        monkeypatch.setenv("HF_API_TOKEN", "")
+        monkeypatch.setenv("GROQ_API_KEY", "")
+        from importlib import reload
+        import app.config as config_module
+        reload(config_module)
+        warnings = config_module.Config.validate()
+        assert any("Ningun proveedor LLM configurado" in item for item in warnings)
+
+
+# ============================================================
+# utils/network_analysis.py
+# ============================================================
+
+class TestNetworkAnalysis:
+
+    def test_extract_service_fingerprint_from_reliable_banner(self):
+        from utils.network_analysis import extract_service_fingerprint
+        fp = extract_service_fingerprint("Dropbear sshd 2020.81")
+        assert fp.product == "Dropbear SSH"
+        assert fp.version == "2020.81"
+        assert fp.confidence == "high"
+
+    def test_extract_service_fingerprint_rejects_low_signal_banner(self):
+        from utils.network_analysis import extract_service_fingerprint
+        fp = extract_service_fingerprint("tcpwrapped")
+        assert fp.product is None
+        assert fp.version is None
+        assert fp.confidence == "low"
+
+    def test_render_network_markdown_marks_partial_coverage_and_priority(self):
+        from utils.network_analysis import render_network_markdown
+        from utils.network_parser import NetworkHost
+
+        host = NetworkHost(
+            ip="192.168.1.1",
+            mac="AA:BB:CC:DD:EE:FF",
+            vendor=None,
+            os="Linux 3.2 - 4.9",
+            open_ports=[22, 80, 443],
+            services={
+                22: "Dropbear sshd 2020.81",
+                80: "mini_httpd 1.30 26Oct2018",
+                443: "mini_httpd 1.30 26Oct2018",
+            },
+        )
+
+        report = render_network_markdown(
+            hosts=[host],
+            objective="identify vulnerable services and prioritize an attack vector",
+            errors=["Timeout: comando supero 60s"],
+            scan_failures={"192.168.1.2": "Timeout"},
+            cve_lookup=lambda query: {"cve_ids": ["CVE-2021-9999"], "query": query},
+            time_context={"human": "2026-05-05 18:00:00 CEST"},
+        )
+
+        assert "Coverage: partial" in report
+        assert "Dropbear SSH 2020.81" in report
+        assert "CVE-2021-9999" in report
+        assert "Vendor ausente o no confirmado" in report
+        assert "Recommended initial focus" in report
+
+
+class TestNetworkParser:
+
+    def test_parse_windows_arp_output(self):
+        from utils.network_parser import NetworkParser
+        parser = NetworkParser()
+        hosts = parser.parse("""
+Interface: 192.168.1.42 --- 0x8
+  Internet Address      Physical Address      Type
+  192.168.1.1           2c-96-82-45-81-50     dynamic
+""")
+        assert hosts
+        assert hosts[0].ip == "192.168.1.1"
+        assert hosts[0].mac == "2C-96-82-45-81-50" or hosts[0].mac == "2C:96:82:45:81:50"
+
+
+# ============================================================
 # agents/executors/shell_executor.py
 # ============================================================
 
@@ -374,6 +646,19 @@ class TestShellExecutor:
     def test_invalid_syntax(self):
         result = self.ex.execute("echo 'unclosed string")
         assert result["returncode"] == -1
+
+
+# ============================================================
+# utils/sudo_manager.py
+# ============================================================
+
+class TestSudoManager:
+
+    def test_detects_unsupported_stdin_flag_error(self):
+        from utils.sudo_manager import SudoManager
+        assert SudoManager.is_unsupported_stdin_flag_error(
+            "error: unexpected argument '-S' found"
+        ) is True
 
 
 # ============================================================
