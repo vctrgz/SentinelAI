@@ -540,12 +540,17 @@ class TestLLMClientHelpers:
         assert _extract_message_content(payload) == "first\nsecond"
 
     def test_config_validate_warns_when_no_providers(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "")
         monkeypatch.setenv("OPENROUTER_API_KEY", "")
         monkeypatch.setenv("HF_API_TOKEN", "")
         monkeypatch.setenv("GROQ_API_KEY", "")
         from importlib import reload
         import app.config as config_module
         reload(config_module)
+        monkeypatch.setattr(config_module.Config, "OPENAI_API_KEY", "")
+        monkeypatch.setattr(config_module.Config, "OPENROUTER_API_KEY", "")
+        monkeypatch.setattr(config_module.Config, "HF_API_TOKEN", "")
+        monkeypatch.setattr(config_module.Config, "GROQ_API_KEY", "")
         warnings = config_module.Config.validate()
         assert any("Ningun proveedor LLM configurado" in item for item in warnings)
 

@@ -55,7 +55,7 @@ async def _startup() -> None:
     else:
         logger.warning(
             "[Server] No LLM providers configured. "
-            "Set OPENROUTER_API_KEY and/or HF_API_TOKEN and/or GROQ_API_KEY in .env"
+            "Set OPENAI_API_KEY and/or OPENROUTER_API_KEY and/or HF_API_TOKEN and/or GROQ_API_KEY in .env"
         )
 
 
@@ -79,6 +79,7 @@ async def health() -> JSONResponse:
         "status":   "ok" if models else "degraded",
         "models":   models,
         "providers": {
+            "openai": bool(Config.OPENAI_API_KEY),
             "openrouter": bool(Config.OPENROUTER_API_KEY),
             "huggingface": bool(Config.HF_API_TOKEN),
             "groq":        bool(Config.GROQ_API_KEY),

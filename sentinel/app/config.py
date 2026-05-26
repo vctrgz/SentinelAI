@@ -13,24 +13,39 @@ from dotenv import load_dotenv
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DOTENV_PATH = os.path.join(BASE_DIR, ".env")
-load_dotenv(dotenv_path=DOTENV_PATH, override=False)
+load_dotenv(dotenv_path=DOTENV_PATH, override=True)
+
+
+def _clean_env_value(name: str, default: str = "") -> str:
+    value = os.getenv(name, default)
+    if not value:
+        return ""
+    cleaned = value.strip().replace("\r", "").replace("\n", "").replace("\t", "").strip("\"'")
+    if not cleaned or cleaned.startswith("#"):
+        return ""
+    placeholder_markers = ("your_", "tu_", "changeme", "replace", "placeholder", "pon_")
+    if any(marker in cleaned.lower() for marker in placeholder_markers):
+        return ""
+    return cleaned
 
 
 class Config:
-    HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
-    GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+    OPENAI_API_KEY = _clean_env_value("OPENAI_API_KEY")
+    HF_API_TOKEN = _clean_env_value("HF_API_TOKEN")
+    GROQ_API_KEY = _clean_env_value("GROQ_API_KEY")
+    OPENROUTER_API_KEY = _clean_env_value("OPENROUTER_API_KEY")
 
-    HF_MODEL_PRIMARY = os.getenv("HF_MODEL_PRIMARY", "mistralai/Mistral-7B-Instruct-v0.3")
-    HF_MODEL_FALLBACK = os.getenv("HF_MODEL_FALLBACK", "HuggingFaceH4/zephyr-7b-beta")
+    OPENAI_MODEL = _clean_env_value("OPENAI_MODEL", "gpt-4.1-mini")
+    HF_MODEL_PRIMARY = _clean_env_value("HF_MODEL_PRIMARY", "mistralai/Mistral-7B-Instruct-v0.3")
+    HF_MODEL_FALLBACK = _clean_env_value("HF_MODEL_FALLBACK", "HuggingFaceH4/zephyr-7b-beta")
 
-    GROQ_MODEL_PRIMARY = os.getenv("GROQ_MODEL_PRIMARY", "llama-3.1-8b-instant")
-    GROQ_MODEL_FALLBACK = os.getenv("GROQ_MODEL_FALLBACK", "llama-3.3-70b-versatile")
-    GROQ_MODEL_TERTIARY = os.getenv("GROQ_MODEL_TERTIARY", "groq/compound")
+    GROQ_MODEL_PRIMARY = _clean_env_value("GROQ_MODEL_PRIMARY", "llama-3.1-8b-instant")
+    GROQ_MODEL_FALLBACK = _clean_env_value("GROQ_MODEL_FALLBACK", "llama-3.3-70b-versatile")
+    GROQ_MODEL_TERTIARY = _clean_env_value("GROQ_MODEL_TERTIARY", "groq/compound")
 
-    OPENROUTER_MODEL_PRIMARY = os.getenv("OPENROUTER_MODEL_PRIMARY", "meta-llama/llama-3.3-70b-instruct")
-    OPENROUTER_MODEL_FALLBACK = os.getenv("OPENROUTER_MODEL_FALLBACK", "")
-    OPENROUTER_MODEL_SECONDARY = os.getenv("OPENROUTER_MODEL_SECONDARY", "")
+    OPENROUTER_MODEL_PRIMARY = _clean_env_value("OPENROUTER_MODEL_PRIMARY", "meta-llama/llama-3.3-70b-instruct")
+    OPENROUTER_MODEL_FALLBACK = _clean_env_value("OPENROUTER_MODEL_FALLBACK")
+    OPENROUTER_MODEL_SECONDARY = _clean_env_value("OPENROUTER_MODEL_SECONDARY")
 
     LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "60"))
     LLM_EMPTY_RESPONSE_RETRIES = int(os.getenv("LLM_EMPTY_RESPONSE_RETRIES", "1"))
@@ -64,6 +79,11 @@ class Config:
         if not os.path.exists(DOTENV_PATH):
             warnings.append(f"No se encontro .env en {DOTENV_PATH}")
 
+        if not cls.OPENAI_API_KEY:
+            warnings.append(
+                "OPENAI_API_KEY no configurado - OpenAI deshabilitado. "
+                "Obten uno en: https://platform.openai.com/api-keys"
+            )
         if not cls.OPENROUTER_API_KEY:
             warnings.append(
                 "OPENROUTER_API_KEY no configurado - OpenRouter deshabilitado. "
@@ -79,7 +99,7 @@ class Config:
                 "GROQ_API_KEY no configurado - Groq deshabilitado. "
                 "Obten uno en: https://console.groq.com/keys"
             )
-        if not cls.OPENROUTER_API_KEY and not cls.HF_API_TOKEN and not cls.GROQ_API_KEY:
+        if not cls.OPENAI_API_KEY and not cls.OPENROUTER_API_KEY and not cls.HF_API_TOKEN and not cls.GROQ_API_KEY:
             warnings.append("Ningun proveedor LLM configurado. El sistema no podra generar respuestas.")
         if cls.MAX_ITERATIONS < 1:
             warnings.append("MAX_ITERATIONS debe ser >= 1")
