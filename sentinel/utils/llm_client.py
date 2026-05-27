@@ -18,7 +18,7 @@ from utils.runtime_tracer import get_tracer
 
 
 _ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
-load_dotenv(dotenv_path=_ENV_PATH, override=False)
+load_dotenv(dotenv_path=_ENV_PATH, override=True)
 
 
 def _clean_key(raw: str | None) -> str:
@@ -26,7 +26,20 @@ def _clean_key(raw: str | None) -> str:
         return ""
     cleaned = raw.strip()
     cleaned = cleaned.replace("\r", "").replace("\n", "").replace("\t", "")
-    return cleaned.strip("\"'")
+    cleaned = cleaned.strip("\"'")
+    if not cleaned or cleaned.startswith("#"):
+        return ""
+    placeholder_markers = (
+        "your_",
+        "tu_",
+        "changeme",
+        "replace",
+        "placeholder",
+        "pon_",
+    )
+    if any(marker in cleaned.lower() for marker in placeholder_markers):
+        return ""
+    return cleaned
 
 
 _EMPTY_RESPONSE_RETRIES = int(_clean_key(os.getenv("LLM_EMPTY_RESPONSE_RETRIES", "1")) or "1")
@@ -47,6 +60,8 @@ class Provider:
         return bool(self.model and self.api_key)
 
     def chat_url(self) -> str:
+        if self.name == "openai":
+            return "https://api.openai.com/v1/chat/completions"
         if self.name == "huggingface":
             return "https://router.huggingface.co/v1/chat/completions"
         if self.name == "groq":
@@ -78,6 +93,7 @@ def _build_providers() -> List[Provider]:
     _add_provider("groq", "GROQ_MODEL_PRIMARY", "llama-3.1-8b-instant", "GROQ_API_KEY")
     _add_provider("groq", "GROQ_MODEL_FALLBACK", "llama-3.3-70b-versatile", "GROQ_API_KEY")
     _add_provider("groq", "GROQ_MODEL_TERTIARY", "groq/compound", "GROQ_API_KEY")
+    _add_provider("openai", "OPENAI_MODEL", "gpt-4.1-mini", "OPENAI_API_KEY")
     return providers
 
 
