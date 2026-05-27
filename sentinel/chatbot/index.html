@@ -458,6 +458,45 @@ function showSudoError(msg) {
   sudoInput.focus();
 }
 
+// Conectar al stream proactivo de Wazuh
+function connectWazuhStream() {
+    const es = new EventSource('/wazuh/alerts/stream');
+
+    es.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'wazuh_alert') {
+            showWazuhNotification(data);
+        }
+    };
+
+    es.onerror = () => {
+        // Reconectar en 10s si falla
+        es.close();
+        setTimeout(connectWazuhStream, 10000);
+    };
+}
+
+function showWazuhNotification(data) {
+    // Crear banner de notificación en el chat
+    const banner = document.createElement('div');
+    banner.className = 'wazuh-alert-banner';
+    banner.innerHTML = `
+        <strong>🚨 Wazuh: ${data.count} alerta(s) crítica(s)</strong>
+        <p>${data.summary}</p>
+        <button onclick="askAboutAlerts()">Ver detalle</button>
+    `;
+    document.getElementById('chat-messages').prepend(banner);
+}
+
+function askAboutAlerts() {
+    document.getElementById('user-input').value = 
+        'Dame el detalle de las alertas críticas de Wazuh más recientes';
+    document.getElementById('send-btn').click();
+}
+
+// Iniciar cuando carga la página
+document.addEventListener('DOMContentLoaded', connectWazuhStream);
+
 // Toggle password visibility
 sudoToggle.addEventListener('click', () => {
   const show = sudoInput.type === 'password';

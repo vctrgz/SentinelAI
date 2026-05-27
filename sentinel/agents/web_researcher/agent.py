@@ -5,6 +5,7 @@ import re
 from typing import Iterable
 
 from app.config import Config
+from utils.language_context import build_language_context
 from utils.ollama_client import OllamaClient
 from utils.prompt_context import build_runtime_context_block
 from utils.prompt_loader import build_system_prompt
@@ -32,52 +33,39 @@ def _format_sources(results: Iterable[dict]) -> str:
     return "\n".join(lines)
 
 
-def _format_latest_cve_records(results: Iterable[dict]) -> str:
-    lines: list[str] = []
-    for index, item in enumerate(results, start=1):
-        cve_id = item.get("cve_id") or item.get("title") or "CVE sin id"
-        published = item.get("published") or "fecha no disponible"
-        updated = item.get("lastModified") or ""
-        state = item.get("vulnStatus") or ""
-        url = item.get("url") or ""
-        description = (item.get("description") or "").strip()
-
-        meta = [f"publicado: {published}"]
-        if state:
-            meta.append(f"estado: {state}")
-        if updated:
-            meta.append(f"actualizado: {updated}")
-
-        lines.append(f"{index}. `{cve_id}` ({'; '.join(meta)})")
-        if description:
-            lines.append(f"   {description[:220]}")
-        if url:
-            lines.append(f"   {url}")
-    return "\n".join(lines)
+def _t(language_code: str, es: str, en: str) -> str:
+    return es if language_code == "es" else en
 
 
-def _build_mitigation_note(description: str, status: str) -> str:
+def _build_mitigation_note(description: str, status: str, language_code: str) -> str:
     status_norm = (status or "").lower()
     text = (description or "").lower()
 
     if status_norm == "rejected":
-        return "No aplica: NVD ha rechazado este candidato CVE."
+        return _t(language_code, "No aplica: NVD ha rechazado este candidato CVE.", "Not applicable: NVD rejected this CVE candidate.")
     if status_norm == "deferred":
-        return "Seguimiento pendiente: no hay mitigacion definitiva publicada todavia."
+        return _t(language_code, "Seguimiento pendiente: no hay mitigacion definitiva publicada todavia.", "Pending follow-up: no definitive mitigation has been published yet.")
 
-    notes: list[str] = []
     if any(token in text for token in ("xss", "cross-site scripting", "stored cross-site scripting")):
-        notes.append("aplicar parche o actualizar el producto afectado")
-        notes.append("escapar/validar la entrada y la salida donde se procesa contenido HTML")
+        notes = [
+            _t(language_code, "aplicar parche o actualizar el producto afectado", "apply the patch or update the affected product"),
+            _t(language_code, "escapar o validar la entrada y la salida donde se procesa contenido HTML", "escape or validate input and output where HTML content is processed"),
+        ]
     elif any(token in text for token in ("prototype pollution", "pollution")):
-        notes.append("actualizar a una version corregida")
-        notes.append("bloquear claves de objeto peligrosas y validar la estructura de importacion")
+        notes = [
+            _t(language_code, "actualizar a una version corregida", "update to a fixed version"),
+            _t(language_code, "bloquear claves de objeto peligrosas y validar la estructura de importacion", "block dangerous object keys and validate the import structure"),
+        ]
     elif any(token in text for token in ("sql injection", "sqli")):
-        notes.append("aplicar actualizacion del fabricante")
-        notes.append("usar consultas parametrizadas y revisar el filtrado de entrada")
+        notes = [
+            _t(language_code, "aplicar actualizacion del fabricante", "apply the vendor update"),
+            _t(language_code, "usar consultas parametrizadas y revisar el filtrado de entrada", "use parameterized queries and review input filtering"),
+        ]
     else:
-        notes.append("aplicar la actualizacion o parche del proveedor afectado cuando este disponible")
-        notes.append("revisar las referencias oficiales y limitar la funcionalidad expuesta mientras tanto")
+        notes = [
+            _t(language_code, "aplicar la actualizacion o parche del proveedor afectado cuando este disponible", "apply the affected vendor update or patch when available"),
+            _t(language_code, "revisar las referencias oficiales y limitar la funcionalidad expuesta mientras tanto", "review official references and limit exposed functionality in the meantime"),
+        ]
 
     return "; ".join(notes).capitalize() + "."
 
@@ -109,7 +97,6 @@ def _extract_squad_sections(text: str) -> dict[str, str]:
 
 
 class WebResearchAgent:
-
     def __init__(self) -> None:
         model = Config.MODELS.get(Config.DEFAULT_MODEL, "balanceado")
         self.llm = OllamaClient(model)
@@ -182,76 +169,95 @@ class WebResearchAgent:
         payload["lookup_query"] = query
         return payload
 
-    def respond(self, user_input: str, objective: str = "") -> str:
+    def respond(self, user_input: str, objective: str = "", language_context: dict | None = None) -> str:
         assessment = self.assess(user_input, objective)
         time_context = get_current_time_context()
+        language_context = language_context or build_language_context(objective or user_input)
 
         if assessment["kind"] in {"exact_cve", "latest_cve", "vulnerability_research"} or EXACT_CVE_RE.search(user_input):
             payload = self.search_cves(user_input, max_results=8)
-            return self._render_structured_response(payload, objective or user_input, time_context)
+            return self._render_structured_response(payload, objective or user_input, time_context, language_context)
 
         if "vulner" in f"{user_input}\n{objective}".lower():
             payload = self.research_security_topic(user_input, max_results=8)
-            return self._render_structured_response(payload, objective or user_input, time_context)
+            return self._render_structured_response(payload, objective or user_input, time_context, language_context)
 
         payload = self.research_topic(user_input, max_results=8)
-        return self._render_structured_response(payload, objective or user_input, time_context)
+        return self._render_structured_response(payload, objective or user_input, time_context, language_context)
 
-    def _render_structured_response(self, payload: dict, objective: str, time_context: dict) -> str:
+    def _render_structured_response(
+        self,
+        payload: dict,
+        objective: str,
+        time_context: dict,
+        language_context: dict | None = None,
+    ) -> str:
+        language_context = language_context or build_language_context(objective)
+        lang = language_context.get("code", "en")
+
         if payload.get("status") == "error":
             return (
-                "No se pudo completar la busqueda web en este momento.\n"
-                f"Motivo: {payload.get('error', 'error desconocido')}"
+                _t(lang, "No se pudo completar la busqueda web en este momento.", "The web search could not be completed right now.")
+                + "\n"
+                + _t(lang, "Motivo:", "Reason:")
+                + f" {payload.get('error', 'unknown error')}"
             )
 
         if payload.get("kind") == "exact_cve":
             references = payload.get("references", [])[:5]
-            lines = [f"Informacion de `{payload.get('cve_id', '')}`", ""]
+            lines = [f"{_t(lang, 'Informacion de', 'Information for')} `{payload.get('cve_id', '')}`", ""]
             if payload.get("date_published"):
-                lines.append(f"- Publicado: {payload['date_published']}")
+                lines.append(f"- {_t(lang, 'Publicado', 'Published')}: {payload['date_published']}")
             if payload.get("date_updated"):
-                lines.append(f"- Actualizado: {payload['date_updated']}")
+                lines.append(f"- {_t(lang, 'Actualizado', 'Updated')}: {payload['date_updated']}")
             if payload.get("state"):
-                lines.append(f"- Estado: {payload['state']}")
-            lines.append("- Fuente principal: cve.org")
+                lines.append(f"- {_t(lang, 'Estado', 'State')}: {payload['state']}")
+            lines.append(f"- {_t(lang, 'Fuente principal', 'Primary source')}: cve.org")
             if references:
-                lines.append("- Referencias comparadas:")
+                lines.append(f"- {_t(lang, 'Referencias comparadas', 'Compared references')}:")
                 lines.extend(f"  - {item.get('url', '')}" for item in references)
             excerpt = payload.get("page_excerpt", "")
             if excerpt:
                 lines.append("")
-                lines.append("Resumen extraido:")
+                lines.append(_t(lang, "Resumen extraido:", "Extracted summary:"))
                 lines.append(excerpt[:800])
             return "\n".join(lines)
 
         if payload.get("kind") == "latest_cve":
             latest = payload.get("latest_cve")
             latest_record = payload.get("latest_record") or {}
+            if not latest and payload.get("results"):
+                latest_record = payload["results"][0]
+                latest = latest_record.get("cve_id")
             if latest:
                 description = (latest_record.get("description") or "").strip()
-                mitigation = _build_mitigation_note(description, latest_record.get("vulnStatus", ""))
-                published = latest_record.get("published") or "fecha no disponible"
-                updated = latest_record.get("lastModified") or "fecha no disponible"
-                state = latest_record.get("vulnStatus") or "desconocido"
+                mitigation = _build_mitigation_note(description, latest_record.get("vulnStatus", ""), lang)
+                published = latest_record.get("published") or _t(lang, "fecha no disponible", "date unavailable")
+                updated = latest_record.get("lastModified") or _t(lang, "fecha no disponible", "date unavailable")
+                state = latest_record.get("vulnStatus") or _t(lang, "desconocido", "unknown")
                 url = latest_record.get("url") or f"https://nvd.nist.gov/vuln/detail/{latest}"
-
                 return (
-                    f"Ultimo CVE localizado en NVD: `{latest}`\n\n"
-                    f"Publicado: {published}\n"
-                    f"Estado: {state}\n"
-                    f"Actualizado: {updated}\n\n"
-                    f"Descripcion: {description or 'No disponible en el registro consultado.'}\n\n"
-                    f"Mitigacion: {mitigation}\n\n"
-                    f"Fuente: {url}\n"
-                    f"Nota: {payload.get('note', '')}"
+                    f"{_t(lang, 'Ultimo CVE localizado en NVD', 'Latest CVE found in NVD')}: `{latest}`\n\n"
+                    f"{_t(lang, 'Publicado', 'Published')}: {published}\n"
+                    f"{_t(lang, 'Estado', 'State')}: {state}\n"
+                    f"{_t(lang, 'Actualizado', 'Updated')}: {updated}\n\n"
+                    f"{_t(lang, 'Descripcion', 'Description')}: {description or _t(lang, 'No disponible en el registro consultado.', 'Not available in the consulted record.')}\n\n"
+                    f"{_t(lang, 'Mitigacion', 'Mitigation')}: {mitigation}\n\n"
+                    f"{_t(lang, 'Fuente', 'Source')}: {url}\n"
+                    f"{_t(lang, 'Nota', 'Note')}: {payload.get('note', '')}"
                 )
             return (
-                "No se pudo localizar un ultimo CVE de forma fiable en cve.org con la estrategia actual.\n"
-                f"Nota: {payload.get('note', '')}"
+                _t(
+                    lang,
+                    "No se pudo localizar un ultimo CVE de forma fiable con la estrategia actual.",
+                    "A reliable latest CVE could not be identified with the current strategy.",
+                )
+                + "\n"
+                + f"{_t(lang, 'Nota', 'Note')}: {payload.get('note', '')}"
             )
 
         if payload.get("kind") == "general_web":
-            return self._render_general_web_answer(payload, objective, time_context)
+            return self._render_general_web_answer(payload, objective, time_context, language_context)
 
         prompt = f"""
 {build_runtime_context_block(
@@ -261,6 +267,7 @@ class WebResearchAgent:
         "State uncertainty explicitly when evidence is incomplete or ambiguous.",
     ],
     time_context=time_context,
+    language_context=language_context,
 )}
 
 Objective:
@@ -280,60 +287,26 @@ Return concise markdown with:
             return self.llm.chat(self.system_prompt, prompt)
         except Exception:
             return (
-                f"Research query: `{payload.get('query', objective)}`\n"
-                "Best sources:\n"
+                f"{_t(lang, 'Consulta de investigacion', 'Research query')}: `{payload.get('query', objective)}`\n"
+                f"{_t(lang, 'Mejores fuentes', 'Best sources')}:\n"
                 f"{_format_sources(payload.get('results', [])[:5])}"
             )
 
-    def _render_general_web_response(self, payload: dict, objective: str, time_context: dict) -> str:
-        results = payload.get("results", []) or []
-        query = payload.get("query", objective)
-        lines = [
-            "Resultados de busqueda web",
-            "",
-            f"Query usada: `{query}`",
-            f"Fecha de consulta: {time_context.get('date', '')}",
-            "Politica de fuentes: todas las fuentes publicas encontradas se tratan como fiables para esta consulta general.",
-            "",
-        ]
-
-        if not results:
-            lines.extend([
-                "No se han recibido resultados del buscador con la estrategia actual.",
-                "No es un rechazo por fiabilidad: simplemente el buscador no devolvio paginas parseables.",
-            ])
-            return "\n".join(lines)
-
-        lines.append("Fuentes encontradas:")
-        for index, item in enumerate(results[:8], start=1):
-            title = item.get("title", "sin titulo")
-            url = item.get("url", "")
-            snippet = item.get("snippet", "")
-            matched_query = item.get("matched_query") or query
-            lines.append(f"{index}. {title}")
-            if url:
-                lines.append(f"   Fuente: {url}")
-            if snippet:
-                lines.append(f"   Resumen: {snippet}")
-            excerpt = item.get("page_excerpt", "")
-            if excerpt:
-                lines.append(f"   Extracto: {excerpt[:900]}")
-            if matched_query != query:
-                lines.append(f"   Query ampliada: {matched_query}")
-
-        lines.extend([
-            "",
-            "Resumen:",
-            "Usa las fuentes anteriores como base. Si la convocatoria oficial aun no aparece en los resultados, la respuesta debe indicarlo como informacion no publicada o no localizada, no como fuente no fiable.",
-        ])
-        return "\n".join(lines)
-
-    def _render_general_web_answer(self, payload: dict, objective: str, time_context: dict) -> str:
+    def _render_general_web_answer(
+        self,
+        payload: dict,
+        objective: str,
+        time_context: dict,
+        language_context: dict | None = None,
+    ) -> str:
+        language_context = language_context or build_language_context(objective)
+        lang = language_context.get("code", "en")
         results = payload.get("results", []) or []
         if not results:
-            return (
-                "No he encontrado resultados web parseables para esa consulta con la estrategia actual. "
-                "No es un problema de fiabilidad de fuentes; el buscador no devolvio contenido util."
+            return _t(
+                lang,
+                "No he encontrado resultados web parseables para esa consulta con la estrategia actual. No es un problema de fiabilidad de fuentes; el buscador no devolvio contenido util.",
+                "I could not find parseable web results for that query with the current strategy. This is not a source-trust issue; the search engine did not return useful content.",
             )
 
         combined_text = "\n".join(
@@ -341,13 +314,13 @@ Return concise markdown with:
             for item in results[:8]
         )
         squad_sections = _extract_squad_sections(combined_text)
-        if squad_sections:
-            lines = ["La convocatoria de España para el Mundial 2026 es:", ""]
+        if squad_sections and lang == "es":
+            lines = ["La convocatoria encontrada es:", ""]
             for label in ("Porteros", "Defensas", "Centrocampistas", "Delanteros"):
                 if label in squad_sections:
                     lines.append(f"**{label}:** {squad_sections[label]}")
             lines.append("")
-            lines.append("Según los resultados web encontrados, Luis de la Fuente anunció una lista de 26 jugadores.")
+            lines.append("Esta respuesta se ha reconstruido a partir de los resultados web recuperados.")
             return "\n".join(lines)
 
         evidence_lines: list[str] = []
@@ -367,18 +340,18 @@ Return concise markdown with:
         "All provided public sources are considered reliable for this non-security query.",
         "Answer the user's question directly first.",
         "Do not output a research log, query list, methodology, or uncertainty section unless the answer is genuinely not present.",
-        "Use Spanish if the user asked in Spanish.",
-        "If the evidence contains a full roster/list, extract and present the list.",
+        "If the evidence contains a full roster or list, extract and present it.",
         "If only snippets are available and not the full list, give the concrete facts present and say the full list was not visible in the fetched text.",
-        "Mention sources only briefly at the end under 'Fuentes' with names, not long snippets.",
+        "Mention sources only briefly at the end under 'Fuentes' or 'Sources'.",
     ],
     time_context=time_context,
+    language_context=language_context,
 )}
 
-Pregunta del usuario:
+User question:
 {objective}
 
-Evidencia web:
+Web evidence:
 {chr(10).join(evidence_lines)}
 """
         try:
@@ -386,6 +359,6 @@ Evidencia web:
         except Exception:
             first = results[0]
             return (
-                f"Resultado encontrado: {first.get('snippet') or first.get('title', '')}\n\n"
-                f"Fuente: {first.get('title', 'fuente web')} - {first.get('url', '')}"
+                f"{_t(lang, 'Resultado encontrado', 'Found result')}: {first.get('snippet') or first.get('title', '')}\n\n"
+                f"{_t(lang, 'Fuente', 'Source')}: {first.get('title', _t(lang, 'fuente web', 'web source'))} - {first.get('url', '')}"
             )

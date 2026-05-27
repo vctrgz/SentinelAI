@@ -1,20 +1,27 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 
 
 _SPANISH_HINTS = (
-    r"\b(el|la|los|las|un|una|de|del|que|por|para|con|sin|como|cual|cuál|ultimo|último|informacion|información|vulnerabilidad|publicado)\b",
+    r"\b(el|la|los|las|un|una|de|del|que|por|para|con|sin|como|cu[aá]l|ultimo|[uú]ltimo|informaci[oó]n|vulnerabilidad|publicado|respuesta|idioma|red|dispositivos)\b",
 )
 _ENGLISH_HINTS = (
-    r"\b(the|a|an|of|for|with|without|what|which|latest|current|published|vulnerability|information)\b",
+    r"\b(the|a|an|of|for|with|without|what|which|latest|current|published|vulnerability|information|answer|language|network|devices)\b",
 )
 _PORTUGUESE_HINTS = (
-    r"\b(o|a|os|as|de|do|da|que|com|sem|qual|ultimo|último|informacao|informação|vulnerabilidade|publicado)\b",
+    r"\b(o|a|os|as|de|do|da|que|com|sem|qual|ultimo|[uú]ltimo|informa[cç][aã]o|vulnerabilidade|publicado|resposta|idioma|rede|dispositivos)\b",
 )
 _FRENCH_HINTS = (
-    r"\b(le|la|les|de|du|des|que|avec|sans|quel|quelle|dernier|information|vulnérabilité|publie|publié)\b",
+    r"\b(le|la|les|de|du|des|que|avec|sans|quel|quelle|dernier|information|vuln[eé]rabilit[eé]|publi[eé]|r[eé]ponse|langue|r[eé]seau|appareils)\b",
 )
+
+_LANGUAGE_NAMES = {
+    "es": "Spanish",
+    "en": "English",
+    "pt": "Portuguese",
+    "fr": "French",
+}
 
 
 def detect_language(text: str) -> str:
@@ -28,3 +35,26 @@ def detect_language(text: str) -> str:
     if any(re.search(pattern, normalized) for pattern in _ENGLISH_HINTS):
         return "en"
     return "en"
+
+
+def build_language_context(text: str | None = None, language: str | None = None) -> dict:
+    code = (language or detect_language(text or "") or "en").lower()
+    if code not in _LANGUAGE_NAMES:
+        code = "en"
+
+    return {
+        "code": code,
+        "name": _LANGUAGE_NAMES[code],
+        "instruction": (
+            f"Respond entirely in {_LANGUAGE_NAMES[code]}. "
+            "Do not mix languages unless quoting source material, commands, code, product names, "
+            "or protocol identifiers. Keep the same language even if intermediate tools, logs, "
+            "or prompts use another language."
+        ),
+    }
+
+
+def get_language_instruction(language_context: dict | None) -> str:
+    if not language_context:
+        language_context = build_language_context(language="en")
+    return language_context.get("instruction", build_language_context(language="en")["instruction"])

@@ -1,9 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 from typing import Callable, Iterable
 
+from utils.language_context import build_language_context
 from utils.network_parser import NetworkHost
 from utils.time_context import get_current_time_context
 
@@ -33,6 +34,10 @@ _CANONICAL_PRODUCTS = {
 }
 
 _LOW_SIGNAL_SERVICES = {"tcpwrapped", "iphone-sync", "null", "unknown", ""}
+
+
+def _t(language_code: str, es: str, en: str) -> str:
+    return es if language_code == "es" else en
 
 
 @dataclass
@@ -139,19 +144,25 @@ def assess_host_priority(host: NetworkHost) -> tuple[float, str]:
     return score, "baja"
 
 
-def build_uncertainty_notes(host: NetworkHost, scan_status: str) -> list[str]:
+def build_uncertainty_notes(host: NetworkHost, scan_status: str, language_code: str = "es") -> list[str]:
     notes: list[str] = []
     if not host.vendor:
-        notes.append("Vendor ausente o no confirmado.")
+        notes.append(_t(language_code, "Vendor ausente o no confirmado.", "Vendor missing or not confirmed."))
     if host.os and _OS_RANGE_RE.search(host.os):
-        notes.append("El fingerprint de SO es un rango, no una version exacta.")
+        notes.append(_t(language_code, "El fingerprint de SO es un rango, no una version exacta.", "The OS fingerprint is a range, not an exact version."))
     if scan_status == "incomplete":
-        notes.append("El escaneo del host no termino; la cobertura es parcial.")
+        notes.append(_t(language_code, "El escaneo del host no termino; la cobertura es parcial.", "The host scan did not finish; coverage is partial."))
     if scan_status == "discovery_only":
-        notes.append("Solo hay evidencia de descubrimiento; falta enumeracion profunda.")
+        notes.append(_t(language_code, "Solo hay evidencia de descubrimiento; falta enumeracion profunda.", "There is only discovery evidence; deep enumeration is still missing."))
     for port, service in host.services.items():
         if service.lower() in _LOW_SIGNAL_SERVICES:
-            notes.append(f"Puerto {port}: servicio con banner de baja senal ({service}).")
+            notes.append(
+                _t(
+                    language_code,
+                    f"Puerto {port}: servicio con banner de baja senal ({service}).",
+                    f"Port {port}: low-signal service banner ({service}).",
+                )
+            )
     return notes
 
 
@@ -187,26 +198,26 @@ def build_service_hypotheses(
     return hypotheses
 
 
-def build_recommended_vector(hosts: Iterable[NetworkHost]) -> tuple[NetworkHost | None, str]:
+def build_recommended_vector(hosts: Iterable[NetworkHost], language_code: str = "es") -> tuple[NetworkHost | None, str]:
     ranked = sorted(
         ((host, *assess_host_priority(host)) for host in hosts),
         key=lambda item: item[1],
         reverse=True,
     )
     if not ranked:
-        return None, "No hay hosts suficientes para priorizar."
+        return None, _t(language_code, "No hay hosts suficientes para priorizar.", "There are not enough hosts to prioritize.")
 
     host, score, label = ranked[0]
     reasons = []
     if {22, 80, 443}.issubset(set(host.open_ports)):
-        reasons.append("combina acceso de administracion remota y superficie HTTP/HTTPS")
+        reasons.append(_t(language_code, "combina acceso de administracion remota y superficie HTTP/HTTPS", "it combines remote administration access with HTTP/HTTPS exposure"))
     if host.ip.endswith(".1"):
-        reasons.append("parece un equipo de infraestructura")
+        reasons.append(_t(language_code, "parece un equipo de infraestructura", "it appears to be an infrastructure host"))
     if not reasons:
-        reasons.append("concentra la mayor superficie observable en esta captura")
+        reasons.append(_t(language_code, "concentra la mayor superficie observable en esta captura", "it concentrates the largest observable surface in this capture"))
 
     return host, (
-        f"Prioridad {label} (score {score:.1f}): {host.ip}. "
+        _t(language_code, f"Prioridad {label} (score {score:.1f}): {host.ip}. ", f"Priority {label} (score {score:.1f}): {host.ip}. ")
         + "; ".join(reasons)
         + "."
     )
@@ -219,108 +230,126 @@ def render_network_markdown(
     scan_failures: dict[str, str] | None = None,
     vuln_lookup: Callable[[str], dict] | None = None,
     time_context: dict | None = None,
+    language_context: dict | None = None,
 ) -> str:
     errors = errors or []
     scan_failures = scan_failures or {}
     time_context = time_context or get_current_time_context()
+    language_context = language_context or build_language_context(objective)
+    lang = language_context.get("code", "en")
 
     if not hosts:
-        return "# Network Reconnaissance Report\n\nNo hosts discovered."
+        return _t(lang, "# Informe de Reconocimiento de Red\n\nNo se descubrieron hosts.", "# Network Reconnaissance Report\n\nNo hosts discovered.")
 
-    lines = ["# Network Reconnaissance Report", ""]
-    lines.append(f"Generated: `{time_context.get('human', '')}`")
+    lines = [_t(lang, "# Informe de Reconocimiento de Red", "# Network Reconnaissance Report"), ""]
+    lines.append(f"{_t(lang, 'Generado', 'Generated')}: `{time_context.get('human', '')}`")
     if objective:
-        lines.append(f"Objective: `{objective}`")
+        lines.append(f"{_t(lang, 'Objetivo', 'Objective')}: `{objective}`")
     lines.append("")
 
     incomplete_hosts = sum(1 for host in hosts if classify_scan_status(host, scan_failures) != "completed")
-    lines.append("## Summary")
-    lines.append(f"- Hosts discovered: {len(hosts)}")
-    lines.append(f"- Coverage: {'partial' if incomplete_hosts or errors else 'complete'}")
+    lines.append(f"## {_t(lang, 'Resumen', 'Summary')}")
+    lines.append(f"- {_t(lang, 'Hosts descubiertos', 'Hosts discovered')}: {len(hosts)}")
+    lines.append(f"- {_t(lang, 'Cobertura', 'Coverage')}: {'partial' if incomplete_hosts or errors else 'complete'}")
     if incomplete_hosts:
         lines.append(
-            f"- {incomplete_hosts} host(s) have incomplete or discovery-only coverage due to missing deep scan evidence."
+            _t(
+                lang,
+                f"- {incomplete_hosts} host(s) tienen cobertura incompleta o solo de descubrimiento por falta de evidencia de escaneo profundo.",
+                f"- {incomplete_hosts} host(s) have incomplete or discovery-only coverage because deep-scan evidence is missing.",
+            )
         )
 
-    recommended_host, recommended_vector = build_recommended_vector(hosts)
-    lines.append(f"- Recommended initial focus: {recommended_vector}")
+    recommended_host, recommended_vector = build_recommended_vector(hosts, language_code=lang)
+    lines.append(f"- {_t(lang, 'Foco inicial recomendado', 'Recommended initial focus')}: {recommended_vector}")
     lines.append("")
 
-    lines.append("## Prioritized Hosts")
+    lines.append(f"## {_t(lang, 'Hosts Priorizados', 'Prioritized Hosts')}")
     prioritized = sorted(hosts, key=lambda host: assess_host_priority(host)[0], reverse=True)
     for host in prioritized:
         score, label = assess_host_priority(host)
-        lines.append(f"- `{host.ip}` -> prioridad {label} (score {score:.1f})")
+        priority_label = label if lang == "es" else {"alta": "high", "media": "medium", "baja": "low"}[label]
+        lines.append(f"- `{host.ip}` -> {_t(lang, 'prioridad', 'priority')} {priority_label} (score {score:.1f})")
     lines.append("")
 
-    lines.append("## Host Analysis")
+    lines.append(f"## {_t(lang, 'Analisis de Hosts', 'Host Analysis')}")
     for host in prioritized:
         score, label = assess_host_priority(host)
+        priority_label = label if lang == "es" else {"alta": "high", "media": "medium", "baja": "low"}[label]
         scan_status = classify_scan_status(host, scan_failures)
         lines.append(f"### {host.ip}")
-        lines.append(f"- Prioridad: {label} (score {score:.1f})")
-        lines.append(f"- Estado de escaneo: {scan_status}")
-        lines.append(f"- MAC: `{host.mac or 'desconocida'}`")
-        lines.append(f"- Vendor: {host.vendor or 'Unknown'}")
-        lines.append(f"- OS: {host.os or 'sin fingerprint fiable'}")
+        lines.append(f"- {_t(lang, 'Prioridad', 'Priority')}: {priority_label} (score {score:.1f})")
+        lines.append(f"- {_t(lang, 'Estado de escaneo', 'Scan status')}: {scan_status}")
+        lines.append(f"- MAC: `{host.mac or _t(lang, 'desconocida', 'unknown')}`")
+        lines.append(f"- Vendor: {host.vendor or _t(lang, 'Desconocido', 'Unknown')}")
+        lines.append(f"- OS: {host.os or _t(lang, 'sin fingerprint fiable', 'no reliable fingerprint')}")
 
         if host.open_ports:
-            lines.append("- Puertos observados:")
+            lines.append(f"- {_t(lang, 'Puertos observados', 'Observed ports')}: ")
             lines.append("| Port | Service Banner |")
             lines.append("|------|----------------|")
             for port in sorted(host.open_ports):
                 lines.append(f"| {port} | {host.services.get(port, 'sin banner')} |")
         else:
-            lines.append("- Sin puertos abiertos confirmados en la evidencia disponible.")
+            lines.append(f"- {_t(lang, 'Sin puertos abiertos confirmados en la evidencia disponible.', 'No open ports were confirmed in the available evidence.')}" )
 
         hypotheses = build_service_hypotheses(host, vuln_lookup=vuln_lookup)
         if hypotheses:
-            lines.append("- Hipotesis accionables:")
+            lines.append(f"- {_t(lang, 'Hipotesis accionables', 'Actionable hypotheses')}: ")
             for item in hypotheses:
                 if item["product"] and item["version"]:
                     suffix = (
-                        f" CVEs candidatos: {', '.join(item['cve_ids'])}."
+                        _t(lang, f" CVEs candidatos: {', '.join(item['cve_ids'])}.", f" Candidate CVEs: {', '.join(item['cve_ids'])}.")
                         if item["cve_ids"] else
-                        " Sin coincidencias CVE fiables en la consulta actual."
+                        _t(lang, " Sin coincidencias CVE fiables en la consulta actual.", " No reliable CVE matches in the current lookup.")
                     )
                     lines.append(
-                        f"  - Puerto {item['port']}: {item['product']} {item['version']} -> "
-                        f"buscar CVEs con `{item['cve_query']}`.{suffix}"
+                        _t(
+                            lang,
+                            f"  - Puerto {item['port']}: {item['product']} {item['version']} -> buscar CVEs con `{item['cve_query']}`.{suffix}",
+                            f"  - Port {item['port']}: {item['product']} {item['version']} -> search CVEs with `{item['cve_query']}`.{suffix}",
+                        )
                     )
                     if item["references"]:
                         best = item["references"][0]
                         lines.append(
-                            f"    Fuente principal: {best.get('url', '')}"
+                            _t(lang, f"    Fuente principal: {best.get('url', '')}", f"    Primary source: {best.get('url', '')}")
                         )
                 else:
                     lines.append(
-                        f"  - Puerto {item['port']}: {item['banner']} -> sin evidencia suficiente "
-                        f"para asociar un CVE concreto ({item['reason']})."
+                        _t(
+                            lang,
+                            f"  - Puerto {item['port']}: {item['banner']} -> sin evidencia suficiente para asociar un CVE concreto ({item['reason']}).",
+                            f"  - Port {item['port']}: {item['banner']} -> insufficient evidence to associate a specific CVE ({item['reason']}).",
+                        )
                     )
 
-        notes = build_uncertainty_notes(host, scan_status)
+        notes = build_uncertainty_notes(host, scan_status, language_code=lang)
         if notes:
-            lines.append("- Incertidumbres:")
+            lines.append(f"- {_t(lang, 'Incertidumbres', 'Uncertainties')}: ")
             for note in notes:
                 lines.append(f"  - {note}")
 
         if host.ip in scan_failures:
-            lines.append(f"- Error de escaneo: `{scan_failures[host.ip]}`")
+            lines.append(f"- {_t(lang, 'Error de escaneo', 'Scan error')}: `{scan_failures[host.ip]}`")
         lines.append("")
 
     if errors:
-        lines.append("## Warnings")
+        lines.append(f"## {_t(lang, 'Advertencias', 'Warnings')}")
         for err in errors[:5]:
             if err.strip():
                 lines.append(f"- `{err[:200]}`")
-        lines.append("- Los errores anteriores implican que la cobertura del reconocimiento es parcial.")
+        lines.append(_t(lang, "- Los errores anteriores implican que la cobertura del reconocimiento es parcial.", "- The previous errors imply that reconnaissance coverage is partial."))
 
     if recommended_host is not None:
         lines.append("")
-        lines.append("## Recommended Next Step")
+        lines.append(f"## {_t(lang, 'Siguiente Paso Recomendado', 'Recommended Next Step')}")
         lines.append(
-            f"- Validar primero `{recommended_host.ip}` porque concentra la mayor superficie priorizada y "
-            "permite confirmar si los banners identificados son explotables o si la evidencia actual es insuficiente."
+            _t(
+                lang,
+                f"- Validar primero `{recommended_host.ip}` porque concentra la mayor superficie priorizada y permite confirmar si los banners identificados son explotables o si la evidencia actual es insuficiente.",
+                f"- Validate `{recommended_host.ip}` first because it concentrates the highest-priority observable surface and lets you confirm whether the identified banners are exploitable or whether the current evidence is insufficient.",
+            )
         )
 
     return "\n".join(lines)

@@ -1,10 +1,12 @@
 import json
 import re
-from utils.ollama_client import OllamaClient
+
+from app.config import Config
 from utils.json_parser import safe_json_parse
+from utils.language_context import build_language_context
+from utils.ollama_client import OllamaClient
 from utils.prompt_context import build_runtime_context_block
 from utils.prompt_loader import build_system_prompt
-from app.config import Config
 
 
 INTERPRET_SYSTEM_PROMPT = """
@@ -69,25 +71,24 @@ Generic local task:
 
 
 class OrchestratorAgent:
-
-    def __init__(self):
-        OLLAMA_MODEL = Config.MODELS.get(Config.DEFAULT_MODEL, 'balanceado')
-        self.llm = OllamaClient(OLLAMA_MODEL)
+    def __init__(self) -> None:
+        ollama_model = Config.MODELS.get(Config.DEFAULT_MODEL, "balanceado")
+        self.llm = OllamaClient(ollama_model)
         self.system_prompt = build_system_prompt("agents/orchestrator")
 
     def interpret(self, user_input: str) -> dict:
-
+        language_context = build_language_context(user_input)
         user_prompt = f"""
 {build_runtime_context_block([
-    "Resolve whether the request depends on current or time-sensitive information before interpreting intent."
-])}
+    "Resolve whether the request depends on current or time-sensitive information before interpreting intent.",
+    "Preserve the user's language in the structured objective and constraints when possible.",
+], language_context=language_context)}
 
 User input:
 {json.dumps({"input": user_input}, ensure_ascii=False)}
 
 Return structured JSON.
 """
-
         response = self.llm.chat(INTERPRET_SYSTEM_PROMPT, user_prompt, expect_json=True)
 
         try:
@@ -155,14 +156,12 @@ Return structured JSON.
             "clarification_needed": "",
         }
 
-    def format_confirmation(self, commands: list) -> str:
-
+    def format_confirmation(self, commands: list, language_context: dict | None = None) -> str:
         user_prompt = f"""
-{build_runtime_context_block()}
+{build_runtime_context_block(language_context=language_context)}
 
 Explain these commands to a human:
 
 {json.dumps(commands, ensure_ascii=False)}
 """
-
         return self.llm.chat(self.system_prompt, user_prompt)

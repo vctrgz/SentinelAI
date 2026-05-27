@@ -1,7 +1,8 @@
-import json
+﻿import json
 from typing import Optional
 
 from app.config import Config
+from utils.language_context import build_language_context
 from utils.ollama_client import OllamaClient
 from utils.json_parser import safe_json_parse
 from utils.prompt_context import build_runtime_context_block
@@ -50,9 +51,10 @@ class ReflectorAgent:
             "priority": (task or {}).get("priority", ""),
             "context": self.llm.context_manager.prepare_task_context(task or {"context": {}}),
         }
+        language_context = summarized_task["context"].get("language") or build_language_context(summarized_task["objective"])
 
         user_prompt = f"""
-{build_runtime_context_block()}
+{build_runtime_context_block(language_context=language_context)}
 
 Execution Results:
 {json.dumps(summarized_results, ensure_ascii=False)}

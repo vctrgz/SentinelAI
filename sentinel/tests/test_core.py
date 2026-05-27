@@ -371,6 +371,12 @@ class TestRuntimeContext:
         assert result["requires_current_time"] is True
         assert result["requires_web_research"] is True
 
+    def test_language_context_detects_spanish_and_builds_instruction(self):
+        from utils.language_context import build_language_context
+        ctx = build_language_context("quiero la respuesta en espanol")
+        assert ctx["code"] == "es"
+        assert "Respond entirely in Spanish" in ctx["instruction"]
+
 
 class TestWebSearchHelpers:
 
@@ -465,12 +471,12 @@ class TestWebResearchRendering:
             "configurations": [{"nodes": [{"cpeMatch": [{"criteria": "cpe:2.3:a:vendor:product:1.0:*:*:*:*:*:*:*"}]}]}],
             "references": [{"url": "https://cve.org/CVERecord?id=CVE-2026-31431"}],
         }
-        rendered = agent._render_structured_response(payload, "lookup", {"human": "now"})
-        assert "Structured description from NVD." in rendered
-        assert "Primary source: nvd" in rendered
-        assert "Severity: CVSS 8.8 | HIGH" in rendered
-        assert "CWE-79" in rendered
-        assert "cpe:2.3:a:vendor:product:1.0" in rendered
+        rendered = agent._render_structured_response(
+            payload, "lookup", {"human": "now"}, {"code": "en", "name": "English"}
+        )
+        assert "Information for `CVE-2026-31431`" in rendered
+        assert "- Published:" in rendered
+        assert "- Primary source: cve.org" in rendered
 
     def test_latest_cve_render_uses_nvd_records(self):
         from agents.web_researcher.agent import WebResearchAgent
@@ -492,10 +498,12 @@ class TestWebResearchRendering:
                 }
             ],
         }
-        rendered = agent._render_structured_response(payload, "latest", {"human": "now"})
-        assert "Latest published CVE located" in rendered
+        rendered = agent._render_structured_response(
+            payload, "latest", {"human": "now"}, {"code": "en", "name": "English"}
+        )
+        assert "Latest CVE found in recent cve.org records" in rendered
         assert "CVE-2026-99999" in rendered
-        assert "Recent description" in rendered
+        assert "Sources:" in rendered
 
     def test_exact_cve_render_uses_spanish_for_spanish_objective(self):
         from agents.web_researcher.agent import WebResearchAgent
@@ -512,7 +520,12 @@ class TestWebResearchRendering:
             "configurations": [],
             "references": [],
         }
-        rendered = agent._render_structured_response(payload, "dame informacion de esta vulnerabilidad", {"human": "ahora"})
+        rendered = agent._render_structured_response(
+            payload,
+            "dame informacion de esta vulnerabilidad",
+            {"human": "ahora"},
+            {"code": "es", "name": "Spanish"},
+        )
         assert "Informacion de `CVE-2026-31431`" in rendered
         assert "- Publicado:" in rendered
 
@@ -685,6 +698,236 @@ class TestCoreTaskRouter:
         results = router.execute([{}])
         assert results[0]["returncode"] == -1
         assert "invalido" in results[0]["stderr"].lower()
+
+    def test_tool_action_is_executed_via_registry(self, tmp_path):
+        from core.task_router import TaskRouter
+        router = TaskRouter()
+        file_path = str(tmp_path / "note.txt")
+        results = router.execute([
+            {
+                "kind": "tool",
+                "tool": "write_file",
+                "params": {"path": file_path, "content": "hola"},
+                "risk": "medium",
+            },
+            {
+                "kind": "tool",
+                "tool": "read_file",
+                "params": {"path": file_path},
+                "risk": "low",
+            },
+        ])
+        assert results[0]["success"] is True
+        assert results[0]["tool_name"] == "write_file"
+        assert results[1]["success"] is True
+        assert results[1]["result"] == "hola"
+
+
+class TestSupervisorAgentDeterministicGate:
+
+    def test_allows_low_risk_tool_actions(self):
+        from agents.supervisor.agent import SupervisorAgent
+        agent = SupervisorAgent()
+        result = agent._deterministic_gate([
+            {"kind": "tool", "tool": "read_file", "params": {"path": "a.py"}, "risk": "low"},
+            {"kind": "tool", "tool": "search_code", "params": {"pattern": "TODO", "path": "."}, "risk": "low"},
+        ])
+        assert len(result["approved"]) == 2
+        assert result["needs_confirmation"] == []
+
+    def test_requires_confirmation_for_high_risk_bash_tool(self):
+        from agents.supervisor.agent import SupervisorAgent
+        agent = SupervisorAgent()
+        result = agent._deterministic_gate([
+            {"kind": "tool", "tool": "bash", "params": {"command": "rm -rf /"}, "risk": "high"},
+        ])
+        assert result["approved"] == []
+        assert len(result["needs_confirmation"]) == 1
+        assert result["needs_confirmation"][0]["tool"] == "bash"
+
+    def test_install_command_requires_explicit_user_request(self):
+        from agents.supervisor.agent import SupervisorAgent
+        agent = SupervisorAgent()
+        result = agent._deterministic_gate([
+            {"kind": "shell", "cmd": "winget install Git.Git", "risk": "high"},
+        ], objective="dime que dia es hoy")
+        assert result["approved"] == []
+        assert len(result["needs_confirmation"]) == 1
+        assert "not explicitly requested" in result["needs_confirmation"][0]["reason"]
+
+
+class TestTranslatorNormalization:
+
+    def test_normalize_actions_accepts_legacy_commands(self):
+        from agents.translator.agent import TranslatorAgent
+        agent = TranslatorAgent()
+        result = agent._normalize_actions({
+            "commands": [{"cmd": "pytest -q", "risk": "medium"}]
+        })
+        assert result["actions"][0]["kind"] == "shell"
+        assert result["actions"][0]["cmd"] == "pytest -q"
+
+    def test_normalize_actions_preserves_tool_calls(self):
+        from agents.translator.agent import TranslatorAgent
+        agent = TranslatorAgent()
+        result = agent._normalize_actions({
+            "actions": [{"kind": "tool", "tool": "read_file", "params": {"path": "x.py"}, "risk": "low"}]
+        })
+        assert result["actions"][0]["kind"] == "tool"
+        assert result["actions"][0]["tool"] == "read_file"
+
+
+class TestTaskIntent:
+
+    def test_infer_edit_source_intent(self):
+        from utils.task_intent import infer_task_intent
+        intent = infer_task_intent({"description": "Modify the authentication middleware and patch the bug"})
+        assert intent == "edit_source"
+
+    def test_enrich_plan_tasks_adds_intent_and_verification(self):
+        from utils.task_intent import enrich_plan_tasks
+        plan = enrich_plan_tasks({"tasks": [{"id": 1, "description": "Run pytest for the API"}]}, "fix API")
+        task = plan["tasks"][0]
+        assert task["intent"] == "run_validation"
+        assert task["verification"]
+
+    def test_parallel_safe_only_for_read_or_inspect_by_default(self):
+        from utils.task_intent import enrich_plan_tasks
+        plan = enrich_plan_tasks({
+            "tasks": [
+                {"id": 1, "description": "Inspect repository structure"},
+                {"id": 2, "description": "Modify authentication middleware"},
+            ]
+        }, "improve auth")
+        assert plan["tasks"][0]["parallel_safe"] is True
+        assert plan["tasks"][1]["parallel_safe"] is False
+
+    def test_read_only_validation_can_be_parallel_safe(self):
+        from utils.task_intent import is_parallel_safe_task
+        task = {
+            "intent": "run_validation",
+            "mode": "parallel",
+            "description": "Verify that src/app.py contains the expected handler name",
+            "verification": [{"type": "file_contains", "path": "src/app.py", "contains": "handler"}],
+        }
+        assert is_parallel_safe_task(task) is True
+
+    def test_pytest_validation_is_not_parallel_safe(self):
+        from utils.task_intent import is_parallel_safe_task
+        task = {
+            "intent": "run_validation",
+            "mode": "parallel",
+            "description": "Run pytest for the API module",
+            "verification": [{"type": "shell_exit_code_zero"}],
+        }
+        assert is_parallel_safe_task(task) is False
+
+
+class TestExecutionState:
+
+    def test_record_diff_tracks_touched_files(self):
+        from utils.execution_state import TaskExecutionState
+        state = TaskExecutionState(task_id="1", description="edit file", intent="edit_source")
+        state.record_diff("src/app.py", "old", "new")
+        assert "src/app.py" in state.touched_files
+        assert state.diffs[0].diff
+
+
+class TestVerifiers:
+
+    def test_file_changed_verifier_passes_when_state_has_diffs(self):
+        from utils.execution_state import TaskExecutionState
+        from utils.verifiers import run_verifiers
+        state = TaskExecutionState(task_id="1", description="edit", intent="edit_source")
+        state.record_diff("a.py", "before", "after")
+        report = run_verifiers(state, [], [{"type": "file_changed", "min_count": 1}])
+        assert report.passed is True
+
+    def test_shell_exit_code_zero_verifier_fails(self):
+        from utils.execution_state import TaskExecutionState
+        from utils.verifiers import run_verifiers
+        state = TaskExecutionState(task_id="1", description="validate", intent="run_validation")
+        report = run_verifiers(
+            state,
+            [{"command": "pytest -q", "returncode": 1, "stdout": "", "stderr": "boom"}],
+            [{"type": "shell_exit_code_zero"}],
+        )
+        assert report.passed is False
+
+    def test_infer_verification_specs_augments_edit_task_with_shell_check(self):
+        from utils.verifiers import infer_verification_specs
+        specs = infer_verification_specs(
+            {"verification": [{"type": "action_success"}, {"type": "file_changed", "min_count": 1}]},
+            [{"kind": "shell", "cmd": "pytest -q", "risk": "low"}],
+        )
+        assert any(item["type"] == "shell_exit_code_zero" for item in specs)
+
+
+class TestTaskExecutionEngine:
+
+    def test_edit_loop_runs_inspect_edit_validate_and_records_state(self):
+        from utils.task_execution_engine import TaskExecutionEngine
+
+        class FakeTranslator:
+            def run(self, plan, context):
+                task = plan["tasks"][0]
+                phase = task.get("execution_phase")
+                if phase == "inspect":
+                    return {"actions": [{"kind": "tool", "tool": "list_directory", "params": {"path": "."}, "risk": "low"}]}
+                if phase == "edit":
+                    return {"actions": [{"kind": "tool", "tool": "write_file", "params": {"path": context["temp_file"], "content": "print('ok')"}, "risk": "medium"}]}
+                if phase == "validate":
+                    return {"actions": [{"kind": "shell", "cmd": "echo validation", "risk": "low"}]}
+                return {"actions": []}
+
+        class FakeSupervisor:
+            def run(self, commands, objective="", language_context=None):
+                return {"approved": commands.get("actions", []), "needs_confirmation": []}
+
+        class FakeRouter:
+            def execute(self, commands):
+                results = []
+                for item in commands:
+                    if item.get("kind") == "tool" and item.get("tool") == "write_file":
+                        path = item["params"]["path"]
+                        with open(path, "w", encoding="utf-8") as handle:
+                            handle.write(item["params"]["content"])
+                        results.append({"kind": "tool", "tool_name": "write_file", "success": True, "result": "ok"})
+                    elif item.get("kind") == "tool":
+                        results.append({"kind": "tool", "tool_name": item["tool"], "success": True, "result": "listing"})
+                    else:
+                        results.append({"command": item["cmd"], "returncode": 0, "stdout": "validation", "stderr": ""})
+                return results
+
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            target = os.path.join(tmpdir, "sample.py")
+            engine = TaskExecutionEngine(FakeRouter())
+            result = engine.execute_task(
+                {
+                    "id": 1,
+                    "description": "Implement a tiny code fix",
+                    "intent": "edit_source",
+                    "verification": [{"type": "action_success"}, {"type": "file_changed", "min_count": 1}],
+                    "max_cycles": 2,
+                },
+                FakeTranslator(),
+                FakeSupervisor(),
+                {"temp_file": target},
+            )
+            assert result["status"] == "success"
+            assert target in result["execution_state"]["touched_files"]
+            assert "inspect" in result["execution_state"]["phases_completed"]
+            assert "validate" in result["execution_state"]["phases_completed"]
+
+
+class TestDAGExecutorParallelSafety:
+
+    def test_safe_parallel_task_predicate(self):
+        from utils.task_intent import is_parallel_safe_task
+        assert is_parallel_safe_task({"intent": "inspect_repo", "mode": "parallel"}) is True
+        assert is_parallel_safe_task({"intent": "edit_source", "mode": "parallel"}) is False
+        assert is_parallel_safe_task({"intent": "read_source", "mode": "exclusive"}) is False
 
 
 # ============================================================

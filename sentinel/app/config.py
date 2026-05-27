@@ -36,6 +36,15 @@ class Config:
     OPENROUTER_API_KEY = _clean_env_value("OPENROUTER_API_KEY")
 
     OPENAI_MODEL = _clean_env_value("OPENAI_MODEL", "gpt-4.1-mini")
+
+    # Wazuh
+    WAZUH_HOST = _clean_env_value("WAZUH_HOST")
+    WAZUH_USER = _clean_env_value("WAZUH_USER", "wazuh-wui") or "wazuh-wui"
+    WAZUH_PASSWORD = _clean_env_value("WAZUH_PASSWORD")
+    WAZUH_VERIFY_SSL = os.getenv("WAZUH_VERIFY_SSL", "false").lower() == "true"
+    WAZUH_ALERT_LEVEL_MIN = int(os.getenv("WAZUH_ALERT_LEVEL_MIN", "10"))
+    WAZUH_POLL_INTERVAL = int(os.getenv("WAZUH_POLL_INTERVAL", "60"))
+
     HF_MODEL_PRIMARY = _clean_env_value("HF_MODEL_PRIMARY", "mistralai/Mistral-7B-Instruct-v0.3")
     HF_MODEL_FALLBACK = _clean_env_value("HF_MODEL_FALLBACK", "HuggingFaceH4/zephyr-7b-beta")
 
@@ -79,6 +88,8 @@ class Config:
         if not os.path.exists(DOTENV_PATH):
             warnings.append(f"No se encontro .env en {DOTENV_PATH}")
 
+        if not cls.WAZUH_HOST:
+            warnings.append("WAZUH_HOST no configurado - integracion Wazuh deshabilitada.")
         if not cls.OPENAI_API_KEY:
             warnings.append(
                 "OPENAI_API_KEY no configurado - OpenAI deshabilitado. "

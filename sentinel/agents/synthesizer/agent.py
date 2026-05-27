@@ -1,8 +1,9 @@
-import json
+﻿import json
 from typing import Any, List
 
 from agents.web_researcher.agent import WebResearchAgent
 from app.config import Config
+from utils.language_context import build_language_context
 from utils.logger import logger
 from utils.network_analysis import render_network_markdown
 from utils.network_parser import NetworkReport
@@ -71,7 +72,8 @@ class SynthesizerAgent:
             "result_count": len(all_results),
         })
         if not all_results:
-            return "No results to synthesize."
+            language = (context or {}).get("language") or build_language_context(objective)
+            return "No hay resultados para sintetizar." if language.get("code") == "es" else "No results to synthesize."
 
         is_network = (phase == "network_recon") or self._is_network_output(all_results)
         output = (
@@ -118,6 +120,7 @@ class SynthesizerAgent:
             scan_failures=scan_failures,
             vuln_lookup=vuln_lookup,
             time_context=(context or {}).get("time_context"),
+            language_context=(context or {}).get("language"),
         )
         return markdown
 
@@ -147,11 +150,12 @@ class SynthesizerAgent:
                         })
                 clipped.append({"batch_results": batch})
 
+        language_context = (context or {}).get("language") or build_language_context(objective)
         user_prompt = (
-            f"{build_runtime_context_block(time_context=(context or {}).get('time_context'))}\n\n"
+            f"{build_runtime_context_block(time_context=(context or {}).get('time_context'), language_context=language_context)}\n\n"
             f"Objective: {objective}\n\n"
             f"Execution Results:\n{json.dumps(clipped, ensure_ascii=False, indent=2)}\n\n"
-            "Synthesize into a clear summary."
+            "Synthesize into a clear summary for the user while preserving the language policy."
         )
         try:
             return self.llm.chat(self.system_prompt, user_prompt)

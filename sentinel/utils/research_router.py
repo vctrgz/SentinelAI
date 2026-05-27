@@ -58,7 +58,20 @@ _GENERAL_WEB_PATTERNS = (
     r"\bnews\b",
     r"\bnoticias?\b",
 )
-
+_WAZUH_PATTERNS = (
+    r"\bwazuh\b",
+    r"\bsiem\b",
+    r"\balerta(?:s)?\b",
+    r"\balert(?:s)?\b",
+    r"\bincidente(?:s)?\b",
+    r"\bincident(?:s)?\b",
+    r"\blog(?:s)?\s+wazuh\b",
+    r"\bregla(?:s)?\s+wazuh\b",
+    r"\bagente(?:s)?\s+wazuh\b",
+    r"\bevent(?:os?)?\s+seguridad\b",
+    r"\bdetección\b",
+    r"\bdeteccion\b",
+)
 
 def _has_any(patterns: tuple[str, ...], text: str) -> bool:
     return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
@@ -88,6 +101,15 @@ def classify_research_intent(user_input: str, objective: str = "") -> dict:
     has_general_web = _has_any(_GENERAL_WEB_PATTERNS, text)
     private_ip = _contains_private_ip(text)
 
+    # Wazuh / SIEM — siempre requiere acceso local a la API
+    if _has_any(_WAZUH_PATTERNS, text):
+        return {
+            "kind": "wazuh_query",
+            "route_mode": "wazuh",      # nuevo modo exclusivo
+            "requires_research": False,  # no busca en internet
+            "private_ip": private_ip,
+    }
+
     if cve_match:
         return {
             "kind": "exact_cve",
@@ -116,7 +138,7 @@ def classify_research_intent(user_input: str, objective: str = "") -> dict:
     if has_vuln and has_network_asset:
         return {
             "kind": "asset_vulnerability_research",
-            "route_mode": "replace",
+            "route_mode": "augment",
             "requires_research": True,
             "private_ip": private_ip,
         }

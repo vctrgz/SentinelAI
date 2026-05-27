@@ -1,4 +1,4 @@
-"""
+﻿"""
 core/orchestrator.py
 
 Network recon keeps enumeration deterministic and shell-driven.
@@ -6,12 +6,14 @@ LLM usage is reserved for interpretation, planning, reflection, and
 non-network synthesis.
 """
 
+import re
 import uuid
 from typing import Any, List
 
 from agents.executors.shell_executor import ShellExecutor
 from agents.orchestrator.agent import OrchestratorAgent
 from agents.synthesizer.agent import SynthesizerAgent
+from agents.wazuh.agent import WazuhAgent
 from agents.web_researcher.agent import WebResearchAgent
 from app.config import Config
 from app.constants import STATUS_FATAL, STATUS_RETRY, STATUS_SUCCESS
@@ -23,6 +25,7 @@ from core.translator import Translator
 from memory.memory import AgentMemory
 from utils.dag_executor import DAGExecutor
 from utils.freshness import assess_current_info_need
+from utils.language_context import build_language_context
 from utils.logger import setup_logger
 from utils.network_parser import parse_discovery_output
 from utils.os_context import (
@@ -37,9 +40,30 @@ from utils.os_context import (
 from utils.parallel_executor import ParallelExecutor
 from utils.research_router import classify_research_intent
 from utils.runtime_tracer import get_tracer
+from utils.task_intent import enrich_plan_tasks
 from utils.time_context import get_current_time_context
 
 logger = setup_logger()
+
+_ES_WEEKDAYS = {
+    0: "lunes",
+    1: "martes",
+    2: "miercoles",
+    3: "jueves",
+    4: "viernes",
+    5: "sabado",
+    6: "domingo",
+}
+
+_EN_WEEKDAYS = {
+    0: "Monday",
+    1: "Tuesday",
+    2: "Wednesday",
+    3: "Thursday",
+    4: "Friday",
+    5: "Saturday",
+    6: "Sunday",
+}
 
 
 _NETWORK_KEYWORDS = {
@@ -52,15 +76,63 @@ _NETWORK_KEYWORDS = {
     "mapa", "mapping", "topologia", "topology",
 }
 
+_DATE_QUERY_PATTERNS = (
+    r"\bque dia es hoy\b",
+    r"\bque fecha es hoy\b",
+    r"\bque dia estamos\b",
+    r"\bfecha de hoy\b",
+    r"\bwhat day is today\b",
+    r"\bwhat date is today\b",
+    r"\btoday'?s date\b",
+)
+
+_TIME_QUERY_PATTERNS = (
+    r"\bque hora es\b",
+    r"\bhora actual\b",
+    r"\bwhat time is it\b",
+    r"\bcurrent time\b",
+)
+
 
 def _is_network_objective(objective: str) -> bool:
     words = set((objective or "").lower().split())
     return bool(words & _NETWORK_KEYWORDS)
 
 
+def _is_direct_date_query(user_input: str) -> bool:
+    text = (user_input or "").lower()
+    return any(re.search(pattern, text) for pattern in _DATE_QUERY_PATTERNS)
+
+
+def _is_direct_time_query(user_input: str) -> bool:
+    text = (user_input or "").lower()
+    return any(re.search(pattern, text) for pattern in _TIME_QUERY_PATTERNS)
+
+
+def _format_direct_time_answer(user_input: str, time_context: dict, language_context: dict) -> str:
+    lang = (language_context or {}).get("code", "es")
+    import datetime as _dt
+
+    dt = _dt.datetime.fromisoformat(time_context["iso"])
+
+    if _is_direct_date_query(user_input):
+        if lang == "es":
+            return f"Hoy es {_ES_WEEKDAYS[dt.weekday()]}, {time_context['date']}."
+        return f"Today is {_EN_WEEKDAYS[dt.weekday()]}, {time_context['date']}."
+
+    if _is_direct_time_query(user_input):
+        if lang == "es":
+            return f"Ahora mismo son las {time_context['time']} ({time_context['timezone']})."
+        return f"It is currently {time_context['time']} ({time_context['timezone']})."
+
+    return ""
+
+
 def _flatten(results: Any) -> List[dict]:
     flat: List[dict] = []
     if isinstance(results, dict):
+        if "action_results" in results and isinstance(results["action_results"], list):
+            return _flatten(results["action_results"])
         for value in results.values():
             flat.extend(_flatten(value))
     elif isinstance(results, list):
@@ -72,6 +144,19 @@ def _flatten(results: Any) -> List[dict]:
     elif isinstance(results, (str, bytes)):
         flat.append({"stdout": str(results), "returncode": 0, "command": ""})
     return flat
+
+
+def _collect_execution_states(results: Any) -> List[dict]:
+    states: List[dict] = []
+    if isinstance(results, dict):
+        if "execution_state" in results and isinstance(results["execution_state"], dict):
+            states.append(results["execution_state"])
+        for value in results.values():
+            states.extend(_collect_execution_states(value))
+    elif isinstance(results, list):
+        for item in results:
+            states.extend(_collect_execution_states(item))
+    return states
 
 
 class Orchestrator:
@@ -88,7 +173,7 @@ class Orchestrator:
         self.web_agent = WebResearchAgent()
         self.memory = AgentMemory()
         self._shell = ShellExecutor()
-
+        self.wazuh_agent = WazuhAgent()
         self.parallel_executor = ParallelExecutor(self.router)
         self.dag_executor = DAGExecutor(self.parallel_executor, self.router)
 
@@ -104,8 +189,22 @@ class Orchestrator:
             self.memory.reset_working()
             time_context = get_current_time_context()
             os_context = detect_os_context()
+            language_context = build_language_context(user_input)
+
+            direct_time_answer = _format_direct_time_answer(user_input, time_context, language_context)
+            if direct_time_answer:
+                self._tracer.log("orchestrator", "route_direct_time")
+                return direct_time_answer
+
             interpreted = self.agent.interpret(user_input)
-            task = self._create_task(interpreted, time_context=time_context, os_context=os_context)
+            if not interpreted.get("objective"):
+                interpreted["objective"] = user_input
+            task = self._create_task(
+                interpreted,
+                time_context=time_context,
+                os_context=os_context,
+                language_context=language_context,
+            )
             freshness = assess_current_info_need(f"{user_input}\n{task['objective']}")
             research = classify_research_intent(user_input, task["objective"])
             task["context"]["freshness"] = freshness
@@ -118,15 +217,21 @@ class Orchestrator:
                 "os_context": os_context,
                 "freshness": freshness,
                 "research": research,
+                "language": language_context,
             })
-
-            if research.get("route_mode") == "replace" and self.web_agent.should_handle(user_input, task["objective"]):
-                self._tracer.log("orchestrator", "route_web_research")
-                return self.web_agent.respond(user_input, task["objective"])
+            
+            # Wazuh queries — acceso directo a la API del SIEM
+            if research.get("route_mode") == "wazuh":
+                self._tracer.log("orchestrator", "route_wazuh")
+                return self.wazuh_agent.respond(user_input, task["objective"])
 
             if _is_network_objective(task["objective"]):
                 self._tracer.log("orchestrator", "route_network_recon")
-                return self._network_recon_loop(task)
+                return self._network_recon_loop(task, research=research)
+
+            if research.get("route_mode") == "replace" and self.web_agent.should_handle(user_input, task["objective"]):
+                self._tracer.log("orchestrator", "route_web_research")
+                return self.web_agent.respond(user_input, task["objective"], language_context=language_context)
 
             self._tracer.log("orchestrator", "route_react_loop")
             return self._react_loop(task)
@@ -141,7 +246,9 @@ class Orchestrator:
         interpreted: dict,
         time_context: dict | None = None,
         os_context: dict | None = None,
+        language_context: dict | None = None,
     ) -> dict:
+        language_context = language_context or build_language_context(interpreted.get("objective", ""))
         return {
             "task_id": str(uuid.uuid4()),
             "objective": interpreted.get("objective", ""),
@@ -154,11 +261,13 @@ class Orchestrator:
                 "time_context": time_context or get_current_time_context(),
                 "os_context": os_context or detect_os_context(),
                 "memory_summary": self.memory.get_context_summary(),
+                "language": language_context,
             },
         }
 
-    def _network_recon_loop(self, task: dict) -> str:
+    def _network_recon_loop(self, task: dict, research: dict) -> str:
         all_results: List[dict] = []
+        research = research or {}
 
         self._tracer.log_phase("discovery:start")
         cidr = self._detect_cidr()
@@ -190,6 +299,11 @@ class Orchestrator:
         self._tracer.log_phase("enumeration:done", {"result_count": len(all_results)})
         self._tracer.log_phase("synthesis:start")
 
+        if research.get("requires_research") and research.get("route_mode") == "augment":
+            self._tracer.log("orchestrator", "route_cve_enrichment_post_recon")
+            enriched_results = self._enrich_with_cves(all_results, task["objective"])
+            all_results.extend(enriched_results)
+
         self.memory.add_episode({
             "objective": task["objective"],
             "hosts_discovered": discovered_hosts,
@@ -202,6 +316,31 @@ class Orchestrator:
             phase="network_recon",
             context=task["context"],
         )
+
+    def _enrich_with_cves(self, recon_results: List[dict], objective: str) -> List[dict]:
+        """
+        Extrae info de dispositivos de los resultados de nmap y busca CVEs.
+        """
+        device_info_lines = []
+        for r in recon_results:
+            stdout = r.get("stdout", "")
+            if stdout and ("open" in stdout or "OS" in stdout or "Service" in stdout):
+                for line in stdout.splitlines():
+                    if any(kw in line for kw in ("OS:", "Service", "open", "vendor", "Device type")):
+                        device_info_lines.append(line.strip())
+
+        if not device_info_lines:
+            return []
+
+        query = f"{objective} - discovered: {'; '.join(device_info_lines[:8])}"
+        self._tracer.log("orchestrator", "cve_enrichment_query", {"query": query[:120]})
+
+        try:
+            payload = self.web_agent.enrich_vulnerability_hypothesis(query)
+            return [{"type": "cve_enrichment", "payload": payload}]
+        except Exception as exc:
+            self._tracer.log("orchestrator", "cve_enrichment_failed", {"error": str(exc)}, level="WARN")
+            return []
 
     def _detect_cidr(self) -> str:
         os_context = detect_os_context()
@@ -313,12 +452,13 @@ class Orchestrator:
 
             try:
                 self._tracer.log_react_phase(attempt, "reason")
-                plan = self.planner.run(task)
+                plan = enrich_plan_tasks(self.planner.run(task), task["objective"])
                 self._tracer.log("planner", "plan_ready", {"task_count": len(plan.get("tasks", []))})
 
                 self._tracer.log_react_phase(attempt, "act")
-                results = self.dag_executor.run(plan, self.translator, self.supervisor)
+                results = self.dag_executor.run(plan, self.translator, self.supervisor, task["context"])
                 result_list = _flatten(results)
+                execution_states = _collect_execution_states(results)
                 all_results.extend(result_list)
 
                 self._tracer.log_react_phase(attempt, "observe", {"result_count": len(result_list)})
@@ -333,12 +473,14 @@ class Orchestrator:
                     "objective": task["objective"],
                     "status": status,
                     "reason": reason,
+                    "execution_states": execution_states[:5],
                 })
                 task["context"]["history"].append({
                     "attempt": attempt,
                     "status": status,
                     "reason": reason,
                     "result_summary": str(result_list)[:500],
+                    "execution_states": execution_states[:5],
                 })
                 task["context"]["memory_summary"] = self.memory.get_context_summary()
 
